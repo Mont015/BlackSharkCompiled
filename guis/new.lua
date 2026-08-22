@@ -7505,7 +7505,7 @@ components = {
 					end
 		
 					items.Text = #self.ListEnabled > 0 and table.concat(self.ListEnabled, ', ') or 'None'
-					props.Function()
+					props.Function(self.List)
 				end)
 		
 				table.insert(self.Objects, obj)
