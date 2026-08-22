@@ -43,8 +43,8 @@ local tempTargets = {}
 local gamepasses = {}
 
 local function checkPoint(pos, params)
-	for _, v in workspace:GetPartBoundsInRadius(pos, 0, params) do
-		if v.CanCollide and (v:GetClosestPointOnSurface(pos) - pos).Magnitude <= 0 then
+	for _, part in workspace:GetPartBoundsInRadius(pos, 0, params) do
+		if part.CanCollide and (part:GetClosestPointOnSurface(pos) - pos).Magnitude <= 0.0001 then
 			return false
 		end
 	end
@@ -53,19 +53,22 @@ local function checkPoint(pos, params)
 end
 
 local function canClick()
-	local mousepos = (inputService:GetMouseLocation() - guiService:GetGuiInset())
-	for _, v in lplr.PlayerGui:GetGuiObjectsAtPosition(mousepos.X, mousepos.Y) do
+	local mousePosition = (inputService:GetMouseLocation() - guiService:GetGuiInset())
+
+	for _, hit in lplr.PlayerGui:GetGuiObjectsAtPosition(mousePosition.X, mousePosition.Y) do
 		local obj = v:FindFirstAncestorOfClass('ScreenGui')
-		if v.Active and v.Visible and obj and obj.Enabled then
+		if hit.Active and hit.Visible and obj and obj.Enabled then
 			return false
 		end
 	end
-	for _, v in coreGui:GetGuiObjectsAtPosition(mousepos.X, mousepos.Y) do
+
+	for _, hit in coreGui:GetGuiObjectsAtPosition(mousePosition.X, mousePosition.Y) do
 		local obj = v:FindFirstAncestorOfClass('ScreenGui')
-		if v.Active and v.Visible and obj and obj.Enabled then
+		if hit.Active and hit.Visible and obj and obj.Enabled then
 			return false
 		end
 	end
+
 	return (not vape.gui.ScaledGui.ClickGui.Visible) and (not inputService:GetFocusedTextBox())
 end
 
@@ -77,6 +80,7 @@ local function isFriend(plr, recolor)
 		end
 		return friend
 	end
+
 	return nil
 end
 
@@ -173,7 +177,7 @@ run(function()
 				for _, pos in scanPositions do
 					local ray = workspace:Raycast(hitbox, (pos - hitbox), rayParams)
 
-					if not ray and checkPoint(pos, overlapParams) then
+					if not ray and checkPoint(hitbox, overlapParams) then
 						OriginScanner.Cache[part] = {pos, hitbox}
 						return pos, hitbox
 					end
@@ -183,7 +187,7 @@ run(function()
 			for _, pos in scanPositions do
 				local ray = workspace:Raycast(target, (pos - target), rayParams)
 
-				if not ray and checkPoint(pos, overlapParams) then
+				if not ray and checkPoint(target, overlapParams) then
 					OriginScanner.Cache[part] = {pos}
 					return pos
 				end
@@ -202,29 +206,29 @@ run(function()
 	end
 end)
 
-local CheatFlags = {Flags = {}, Flagged = {}}
+local Cheats = {Flags = {}, Flagged = {}}
 run(function()
-	function CheatFlags:Flag(plr, flagtype, limit)
-		if CheatFlags.Flagged[plr.UserId] then
+	function Cheats:Flag(plr, flagType, limit)
+		if self.Flagged[plr.UserId] then
 			return
 		end
 
-		if not CheatFlags.Flags[plr.UserId] then
-			CheatFlags.Flags[plr.UserId] = {}
+		if not self.Flags[plr.UserId] then
+			self.Flags[plr.UserId] = {}
 		end
 
-		local flags = CheatFlags.Flags[plr.UserId]
-		flags[flagtype] = (flags[flagtype] or 0) + 1
+		local flags = self.Flags[plr.UserId]
+		flags[flagType] = (flags[flagType] or 0) + 1
 
-		if flags[flagtype] > limit then
-			CheatFlags.Flagged[plr.UserId] = true
-			vapeEvents.CheatFlagged:Fire(plr, flagtype)
+		if flags[flagType] > limit then
+			self.Flagged[plr.UserId] = true
+			vapeEvents.CheatFlagged:Fire(plr, flagType)
 		end
 	end
 
-	function CheatFlags:Clear()
-		table.clear(CheatFlags.Flags)
-		table.clear(CheatFlags.Flagged)
+	function Cheats:Clear()
+		table.clear(self.Flags)
+		table.clear(self.Flagged)
 	end
 end)
 
@@ -267,8 +271,8 @@ run(function()
 		return true
 	end
 
-	entitylib.isVulnerable = function(entity, attackcheck)
-		if attackcheck and lplr.Team == teams.Guards and entity.Player.Team == teams.Inmates and not entity.Character:GetAttribute('Hostile') then
+	entitylib.isVulnerable = function(entity, attackCheck)
+		if attackCheck and lplr.Team == teams.Guards and entity.Player.Team == teams.Inmates and not entity.Character:GetAttribute('Hostile') then
 			return false
 		end
 
@@ -469,13 +473,55 @@ run(function()
 	local cheaters = sessioninfo:AddItem('Cheater List', '', function()
 		local text = ''
 		for _, plr in playersService:GetPlayers() do
-			if CheatFlags.Flagged[plr.UserId] then
+			if Cheats.Flagged[plr.UserId] then
 				text = text..'\n'..(plr.DisplayName ~= plr.Name and plr.DisplayName..' ('..plr.Name..')' or plr.Name)
 			end
 		end
 
 		return text
 	end, false)
+
+		table.insert(whitelist.tagcallback, function(plr, plrtag, rich)
+		if plr then
+			local entity = entitylib.getEntity(plr)
+			if entity then
+				if Cheats.Flagged[plr.UserId] then
+					table.insert(plrtag, {text = rich and '⚠️' or 'Cheater'})
+				end
+
+				if plr.Team == teams.Inmates then
+					if entity.Character:GetAttribute('Hostile') then
+						table.insert(plrtag, {text = rich and '💢' or 'Hostile'})
+					elseif entity.Character:GetAttribute('Trespassing') then
+						table.insert(plrtag, {text = rich and '🔗' or 'Trespassing'})
+					end
+				elseif plr.Team == teams.Guards then
+					local count = plr:GetAttribute('InnocentKills') or 0
+					if count > 0 then
+						table.insert(plrtag, {
+							text = tostring(count),
+							color = Color3.fromHSV(math.clamp(1 - (count / 2), 0, 1) / 2.5, 0.89, 0.75)
+						})
+					end
+				end
+			end
+		end
+	end)
+
+	task.spawn(function()
+		gamepasses = {
+			['Riot Police'] = marketplaceService:UserOwnsGamePassAsync(lplr.UserId, 643697197),
+			Mafia = marketplaceService:UserOwnsGamePassAsync(lplr.UserId, 1443271),
+			Sniper = marketplaceService:UserOwnsGamePassAsync(lplr.UserId, 699360089)
+		}
+	end)
+
+	OriginScanner:UpdateIgnore()
+	for _, event in {'EntityAdded', 'LocalAdded'} do
+		vape:Clean(entitylib.Events[event]:Connect(function()
+			OriginScanner:UpdateIgnore()
+		end))
+	end
 
 	vape:Clean(replicatedStorage.Killfeed.ChildAdded:Connect(function(obj)
 		local names = {}
@@ -512,53 +558,11 @@ run(function()
 		end
 	end))
 
-	vape:Clean(entitylib.Events.EntityUpdated:Connect(function(ent)
-		if ent.Player and ent.Player.Team == teams.Inmates then
+	vape:Clean(entitylib.Events.EntityUpdated:Connect(function(entity)
+		if entity.Player and entity.Player.Team == teams.Inmates then
 			vape.Categories.Friends.ColorUpdate:Fire()
 		end
 	end))
-
-	table.insert(whitelist.tagcallback, function(plr, plrtag, rich)
-		if plr then
-			local ent = entitylib.getEntity(plr)
-			if ent then
-				if CheatFlags.Flagged[plr.UserId] then
-					table.insert(plrtag, {text = rich and '⚠️' or 'Cheater'})
-				end
-
-				if plr.Team == teams.Inmates then
-					if ent.Character:GetAttribute('Hostile') then
-						table.insert(plrtag, {text = rich and '💢' or 'Hostile'})
-					elseif ent.Character:GetAttribute('Trespassing') then
-						table.insert(plrtag, {text = rich and '🔗' or 'Trespassing'})
-					end
-				elseif plr.Team == teams.Guards then
-					local count = plr:GetAttribute('InnocentKills') or 0
-					if count > 0 then
-						table.insert(plrtag, {
-							text = tostring(count),
-							color = Color3.fromHSV(math.clamp(1 - (count / 2), 0, 1) / 2.5, 0.89, 0.75)
-						})
-					end
-				end
-			end
-		end
-	end)
-
-	task.spawn(function()
-		gamepasses = {
-			['Riot Police'] = marketplaceService:UserOwnsGamePassAsync(lplr.UserId, 643697197),
-			Mafia = marketplaceService:UserOwnsGamePassAsync(lplr.UserId, 1443271),
-			Sniper = marketplaceService:UserOwnsGamePassAsync(lplr.UserId, 699360089)
-		}
-	end)
-
-	OriginScanner:UpdateIgnore()
-	for _, event in {'EntityAdded', 'LocalAdded'} do
-		vape:Clean(entitylib.Events[event]:Connect(function()
-			OriginScanner:UpdateIgnore()
-		end))
-	end
 
 	vape:Clean(runService.RenderStepped:Connect(function()
 		table.clear(OriginScanner.Cache)
@@ -569,7 +573,7 @@ run(function()
 	end)
 end)
 
-do
+run(function()
 	-- https://github.com/J1ck/roblox-spring/blob/main/src/roblox-spring.luau
 	Spring.__index = Spring
 
@@ -606,9 +610,9 @@ do
 
 		return self.Position
 	end
-end
+end)
 
-do
+run(function()
 	local oldtracer, oldtracertaser, oldtracersniper
 
 	local function Hook(...)
@@ -686,7 +690,7 @@ do
 			oldtracersniper = nil
 		end
 	end
-end
+end)
 
 for _, v in {'Reach', 'Jesus', 'MurderMystery'} do
 	vape:Remove(v)
@@ -715,6 +719,7 @@ run(function()
 		if inputService.TouchEnabled then
 			return gameCamera.ViewportSize / 2
 		end
+
 		return inputService.GetMouseLocation(inputService)
 	end
 
@@ -761,18 +766,18 @@ run(function()
 			local ray = workspace:Raycast(args[2], (origin - args[2]), OriginScanner.Ray)
 
 			if ray then
-				local neworigin, hitbox = OriginScanner:Scan(entitylib.character.RootPart.Position, args[2], ray.Position + ray.Normal * 0.01, targetPart)
+				local newOrigin, hit = OriginScanner:Scan(entitylib.character.RootPart.Position, args[2], ray.Position + ray.Normal * 0.01, targetPart)
 
-				if neworigin then
+				if newOrigin then
 					for index, value in debug.getstack(3) do
 						if value == origin then
-							debug.setstack(3, index, neworigin)
+							debug.setstack(3, index, newOrigin)
 						end
 					end
 
-					args[1] = neworigin
-					if hitbox then
-						return targetPart, hitbox
+					args[1] = newOrigin
+					if hit then
+						return targetPart, hit
 					end
 				end
 			end
@@ -985,6 +990,7 @@ run(function()
 	
 	local function getTriggerBotTarget()
 		rayParams.FilterDescendantsInstances = {lplr.Character}
+	
 		if entitylib.isAlive then
 			local tool = debug.getupvalue(oldshoot or pl.Shoot, 1)
 			local data = debug.getupvalue(oldshoot or pl.Shoot, 10)
@@ -1101,7 +1107,7 @@ run(function()
 				task.cancel(threads[anim])
 			end
 	
-			CheatFlags:Flag(plr, 'invalid animation', 1)
+			Cheats:Flag(plr, 'invalid animation', 1)
 			threads[anim] = task.spawn(function()
 				repeat
 					anim:AdjustWeight(0, 0)
@@ -1259,6 +1265,7 @@ run(function()
 	local CooldownBar
 	local toggles = {}
 	local cdholder, cdframe, cdlabel
+	local arrestCooldown = 0
 	
 	AutoArrest = vape.Categories.Blatant:CreateModule({
 		Name = 'AutoArrest',
@@ -1364,9 +1371,9 @@ run(function()
 				cdlabel.Font = Enum.Font.Arial
 				cdlabel.Parent = cdholder
 			else
-				if cdframe then
-					cdframe:Destroy()
-					cdframe = nil
+				if cdholder then
+					cdholder:Destroy()
+					cdholder = nil
 				end
 			end
 		end,
@@ -2034,9 +2041,9 @@ run(function()
 	local Folder = Instance.new('Folder')
 	Folder.Parent = vape.holder
 	
-	local function Added(obj)
+	local function Added(c4)
 		local cham = Instance.new('Highlight')
-		cham.Adornee = obj
+		cham.Adornee = c4
 		cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 		cham.FillColor = Color3.fromHSV(FillColor.Hue, FillColor.Sat, FillColor.Value)
 		cham.OutlineColor = Color3.fromHSV(OutlineColor.Hue, OutlineColor.Sat, OutlineColor.Value)
@@ -2044,17 +2051,17 @@ run(function()
 		cham.OutlineTransparency = OutlineTransparency.Value
 		cham.Parent = Folder
 	
-		Reference[obj] = cham
+		Reference[c4] = cham
 	end
 	
-	local function Removed(obj)
-		if Reference[obj] then
+	local function Removed(c4)
+		if Reference[c4] then
 			if vape.ThreadFix then
 				setthreadidentity(8)
 			end
 	
-			Reference[obj]:Destroy()
-			Reference[obj] = nil
+			Reference[c4]:Destroy()
+			Reference[c4] = nil
 		end
 	end
 	
@@ -2065,12 +2072,12 @@ run(function()
 				C4ESP:Clean(collectionService:GetInstanceAddedSignal('C4'):Connect(Added))
 				C4ESP:Clean(collectionService:GetInstanceRemovedSignal('C4'):Connect(Removed))
 	
-				for _, obj in collectionService:GetTagged('C4') do
-					task.spawn(Added, obj)
+				for _, c4 in collectionService:GetTagged('C4') do
+					task.spawn(Added, c4)
 				end
 			else
-				for _, v in Reference do
-					v:Destroy()
+				for _, cham in Reference do
+					cham:Destroy()
 				end
 				table.clear(Reference)
 			end
@@ -2080,8 +2087,8 @@ run(function()
 	FillColor = C4ESP:CreateColorSlider({
 		Name = 'Color',
 		Function = function(hue, sat, val)
-			for _, v in Reference do
-				v.FillColor = Color3.fromHSV(hue, sat, val)
+			for _, cham in Reference do
+				cham.FillColor = Color3.fromHSV(hue, sat, val)
 			end
 		end
 	})
@@ -2089,8 +2096,8 @@ run(function()
 		Name = 'Outline Color',
 		DefaultSat = 0,
 		Function = function(hue, sat, val)
-			for _, v in Reference do
-				v.OutlineColor = Color3.fromHSV(hue, sat, val)
+			for _, cham in Reference do
+				cham.OutlineColor = Color3.fromHSV(hue, sat, val)
 			end
 		end
 	})
@@ -2100,8 +2107,8 @@ run(function()
 		Max = 1,
 		Default = 0.5,
 		Function = function(val)
-			for _, v in Reference do
-				v.FillTransparency = val
+			for _, cham in Reference do
+				cham.FillTransparency = val
 			end
 		end,
 		Decimal = 10
@@ -2112,8 +2119,8 @@ run(function()
 		Max = 1,
 		Default = 0.5,
 		Function = function(val)
-			for _, v in Reference do
-				v.OutlineTransparency = val
+			for _, cham in Reference do
+				cham.OutlineTransparency = val
 			end
 		end,
 		Decimal = 10
@@ -2128,8 +2135,8 @@ run(function()
 		Name = 'CameraPhase',
 		Function = function(callback)
 			if callback then
-				local req = require(lplr.PlayerScripts.PlayerModule.CameraModule.ZoomController.Popper)
-				old = debug.getupvalue(debug.getupvalue(req, 3), 7)
+				local popper = require(lplr.PlayerScripts.PlayerModule.CameraModule.ZoomController.Popper)
+				old = debug.getupvalue(debug.getupvalue(popper, 3), 7)
 				debug.setconstant(old, 16, 0)
 			else
 				if old then
@@ -2173,15 +2180,15 @@ run(function()
 		Name = 'AutoDetonate',
 		Function = function(callback)
 			if callback then
-				AutoDetonate:Clean(collectionService:GetInstanceAddedSignal('C4'):Connect(function(obj)
-					if obj:GetAttribute('UserId') == lplr.UserId then
-						localc4 = obj
+				AutoDetonate:Clean(collectionService:GetInstanceAddedSignal('C4'):Connect(function(c4)
+					if c4:GetAttribute('UserId') == lplr.UserId then
+						localc4 = c4
 					end
 				end))
 	
-				for _, obj in collectionService:GetTagged('C4') do
-					if obj:GetAttribute('UserId') == lplr.UserId then
-						localc4 = obj
+				for _, c4 in collectionService:GetTagged('C4') do
+					if c4:GetAttribute('UserId') == lplr.UserId then
+						localc4 = c4
 					end
 				end
 	
@@ -2213,6 +2220,7 @@ run(function()
 									if ticks > 3 then
 										local lastEquip = lplr.Character:FindFirstChildWhichIsA('Tool')
 										entitylib.character.Humanoid:EquipTool(tool)
+	
 										task.spawn(function()
 											replicatedStorage.Remotes.C4.ActivateC4:InvokeServer()
 										end)
@@ -2292,10 +2300,10 @@ run(function()
 							task.spawn(pl.Reload)
 	
 							if HotSwap.Enabled then
-								local wep = getWeapon()
+								local weapon = getWeapon()
 	
-								if wep then
-									entitylib.character.Humanoid:EquipTool(wep)
+								if weapon then
+									entitylib.character.Humanoid:EquipTool(weapon)
 								end
 							end
 						end
@@ -2304,14 +2312,15 @@ run(function()
 	
 				-- reimplementation of playsound to get rid of the bad error
 				oldplaysound = hookfunction(pl.PlaySound, function(sound)
-					local soundobj = debug.getupvalue(pl.Shoot, 1)
-					soundobj = soundobj and soundobj:FindFirstChild('Handle')
-					soundobj = soundobj and soundobj:FindFirstChild(sound)
+					local sound = debug.getupvalue(pl.Shoot, 1)
+					sound = sound and sound:FindFirstChild('Handle')
+					sound = sound and sound:FindFirstChild(sound)
 	
-					if soundobj then
-						local clone = soundobj:Clone()
-						clone.Parent = soundobj.Parent
+					if sound then
+						local clone = sound:Clone()
+						clone.Parent = sound.Parent
 						clone:Play()
+	
 						task.delay(5, clone.Destroy, clone)
 					end
 				end)
@@ -2323,6 +2332,7 @@ run(function()
 					else
 						hookfunction(pl.PlaySound, oldplaysound)
 					end
+	
 					oldplaysound = nil
 				end
 			end
@@ -2437,42 +2447,42 @@ run(function()
 		Name = 'CheatDetector',
 		Function = function(callback)
 			if callback then
-				CheatDetector:Clean(vapeEvents.CheatFlagged.Event:Connect(function(plr, flagname)
-					notif('CheatDetector', 'This player may be cheating! ('..flagname..'): '..plr.Name, 60, 'warning')
+				CheatDetector:Clean(vapeEvents.CheatFlagged.Event:Connect(function(plr, flagType)
+					notif('CheatDetector', 'This player may be cheating! ('..flagType..'): '..plr.Name, 60, 'warning')
 					if AddTarget.Enabled then
 						tempTargets[plr.Name] = true
 					end
 	
-					local ent = entitylib.getEntity(plr)
-					if ent then
-						entitylib.Events.EntityUpdated:Fire(ent)
+					local entity = entitylib.getEntity(plr)
+					if entity then
+						entitylib.Events.EntityUpdated:Fire(entity)
 						if AddTarget.Enabled then
-							ent.Target = true
+							entity.Target = true
 						end
 					end
 				end))
 	
 				repeat
-					for _, ent in entitylib.List do
-						if ent.Health > 0 and ent.Player then
-							if not checkPoint(ent.Head.Position, overlap) then
-								CheatFlags:Flag(ent.Player, 'phase/noclip', 20)
+					for _, entity in entitylib.List do
+						if entity.Health > 0 and entity.Player then
+							if not checkPoint(entity.Head.Position, overlap) then
+								Cheats:Flag(entity.Player, 'phase/noclip', 20)
 							end
 	
-							if not whiteliststates[ent.Humanoid:GetState()] then
-								CheatFlags:Flag(ent.Player, 'invalid state '..ent.Humanoid:GetState().Name, 1)
+							if not whiteliststates[entity.Humanoid:GetState()] then
+								Cheats:Flag(entity.Player, 'invalid state '..entity.Humanoid:GetState().Name, 1)
 							end
 	
-							local velo = ent.RootPart.AssemblyLinearVelocity
-							if not ent.Humanoid.SeatPart then
+							local velo = entity.RootPart.AssemblyLinearVelocity
+							if not entity.Humanoid.SeatPart then
 								if (velo * Vector3.new(1, 0, 1)).Magnitude > 26 then
-									if #workspace:GetPartBoundsInRadius(ent.RootPart.Position, 30, caroverlap) <= 0 then
-										CheatFlags:Flag(ent.Player, 'speed', 20)
+									if #workspace:GetPartBoundsInRadius(entity.RootPart.Position, 30, caroverlap) <= 0 then
+										Cheats:Flag(entity.Player, 'speed', 20)
 									end
 								end
 	
 								if velo.Y > 50 then
-									CheatFlags:Flag(ent.Player, 'highjump', 20)
+									Cheats:Flag(entity.Player, 'highjump', 20)
 								end
 							end
 						end
@@ -2481,7 +2491,7 @@ run(function()
 					task.wait(0.05)
 				until not CheatDetector.Enabled
 			else
-				CheatFlags:Clear()
+				Cheats:Clear()
 			end
 		end,
 		Tooltip = 'Sends alerts for any possible cheaters.'
@@ -2497,9 +2507,9 @@ run(function()
 	local Disabler
 	local old
 	
-	local function EntityAdded(ent)
+	local function EntityAdded(entity)
 		task.defer(function()
-			old = getconnections(ent.Head:GetPropertyChangedSignal('CanCollide'))[1]
+			old = getconnections(entity.Head:GetPropertyChangedSignal('CanCollide'))[1]
 			if old then
 				old:Disable()
 			end
@@ -2538,12 +2548,12 @@ run(function()
 			if callback then
 				pickups = workspace.Prison_ITEMS.clothes:GetChildren()
 	
-				AutoArmor:Clean(workspace.Prison_ITEMS.clothes.ChildAdded:Connect(function(obj)
-					table.insert(pickups, obj)
+				AutoArmor:Clean(workspace.Prison_ITEMS.clothes.ChildAdded:Connect(function(pickup)
+					table.insert(pickups, pickup)
 				end))
 	
-				AutoArmor:Clean(workspace.Prison_ITEMS.clothes.ChildRemoved:Connect(function(obj)
-					local index = table.find(pickups, obj)
+				AutoArmor:Clean(workspace.Prison_ITEMS.clothes.ChildRemoved:Connect(function(pickup)
+					local index = table.find(pickups, pickup)
 					if index then
 						table.remove(pickups, index)
 					end
@@ -2553,13 +2563,13 @@ run(function()
 					if entitylib.isAlive and entitylib.character.Humanoid.MaxHealth <= 100 then
 						local localpos = entitylib.character.RootPart.Position
 	
-						for _, v in pickups do
-							if (v:GetPivot().Position - localpos).Magnitude < 10 and gamepasses[v:GetAttribute('RequiredGamepass')] and AutoArmor.Enabled then
-								if v.Name == 'Light Vest' and gamepasses[lplr.Team == teams.Criminals and 'Mafia' or 'Riot Police'] then
+						for _, pickup in pickups do
+							if (pickup:GetPivot().Position - localpos).Magnitude < 10 and gamepasses[pickup:GetAttribute('RequiredGamepass')] and AutoArmor.Enabled then
+								if pickup.Name == 'Light Vest' and gamepasses[lplr.Team == teams.Criminals and 'Mafia' or 'Riot Police'] then
 									continue
 								end
 	
-								replicatedStorage.Remotes.InteractWithItem:InvokeServer(v:FindFirstChildWhichIsA('BasePart'))
+								replicatedStorage.Remotes.InteractWithItem:InvokeServer(pickup:FindFirstChildWhichIsA('BasePart'))
 							end
 						end
 					end
@@ -2592,9 +2602,9 @@ run(function()
 						local healTool
 						local backpack = lplr:FindFirstChildWhichIsA('Backpack')
 						if backpack then
-							for _, v in backpack:GetChildren() do
-								if healItems[v.Name] then
-									healTool = v
+							for _, tool in backpack:GetChildren() do
+								if healItems[tool.Name] then
+									healTool = tool
 								end
 							end
 	
@@ -2666,9 +2676,9 @@ run(function()
 		Function = function(list)
 			table.clear(SortList)
 			for _, entry in list do
-				local tab = entry:split('/')
-				local ind = tonumber(tab[1])
-				SortList[tab[2]] = ind or 999
+				local data = entry:split('/')
+				local priority = tonumber(data[1]) or 999
+				SortList[data[2]] = priority
 			end
 		end
 	})
@@ -2678,11 +2688,14 @@ run(function()
 	local AutoPickup
 	local Lists = {}
 	local items = {}
-	local sortedpickups = {Guard = {}, Prisoner = {}, Criminal = {}}
+	local pickupList = {Guard = {}, Prisoner = {}, Criminal = {}}
 	
-	local function AddPickup(obj)
-		if obj:IsA('Model') and obj.Name ~= 'Model' and obj:GetAttribute('ToolName') then
-			table.insert(items, {obj, obj.Name == 'TouchGiver'})
+	local function AddPickup(pickup)
+		if pickup:IsA('Model') and pickup.Name ~= 'Model' and pickup:GetAttribute('ToolName') then
+			table.insert(items, {
+				pickup,
+				pickup.Name == 'TouchGiver'
+			})
 		end
 	end
 	
@@ -2690,18 +2703,18 @@ run(function()
 		Name = 'AutoPickup',
 		Function = function(callback)
 			if callback then
-				for _, obj in workspace:GetChildren() do
-					task.spawn(AddPickup, obj)
+				for _, pickup in workspace:GetChildren() do
+					task.spawn(AddPickup, pickup)
 				end
 	
-				for _, obj in workspace:QueryDescendants('Model > .TouchGiver') do
-					task.spawn(AddPickup, obj)
+				for _, pickup in workspace:QueryDescendants('Model > .TouchGiver') do
+					task.spawn(AddPickup, pickup)
 				end
 	
 				AutoPickup:Clean(workspace.ChildAdded:Connect(AddPickup))
-				AutoPickup:Clean(workspace.ChildRemoved:Connect(function(obj)
-					for index, entry in items do
-						if entry[1] == obj then
+				AutoPickup:Clean(workspace.ChildRemoved:Connect(function(pickup)
+					for index, data in items do
+						if data[1] == pickup then
 							table.remove(items, index)
 							break
 						end
@@ -2714,14 +2727,14 @@ run(function()
 						local backpack = lplr:FindFirstChildWhichIsA('Backpack')
 	
 						if backpack then
-							for _, v in items do
-								if v[1].PrimaryPart and (v[1].PrimaryPart.Position - localpos).Magnitude < 12 then
-									local toolname = v[1]:GetAttribute('ToolName')
-									if v[2] then
+							for _, pickup in items do
+								if pickup[1].PrimaryPart and (pickup[1].PrimaryPart.Position - localpos).Magnitude < 12 then
+									local tool = pickup[1]:GetAttribute('ToolName')
+									if pickup[2] then
 										local found = false
-										for _, entry in sortedpickups[lplr.Team == teams.Guards and 'Guard' or (lplr.Team == teams.Criminals and 'Criminal' or 'Prisoner')] do
+										for _, entry in pickupList[lplr.Team == teams.Guards and 'Guard' or (lplr.Team == teams.Criminals and 'Criminal' or 'Prisoner')] do
 											if not backpack:FindFirstChild(entry) then
-												found = toolname ~= entry
+												found = tool ~= entry
 												break
 											end
 										end
@@ -2731,8 +2744,8 @@ run(function()
 										end
 									end
 	
-									if not backpack:FindFirstChild(toolname) then
-										replicatedStorage.Remotes.GiverPressed:FireServer(v[1])
+									if not backpack:FindFirstChild(tool) then
+										replicatedStorage.Remotes.GiverPressed:FireServer(pickup[1])
 									end
 								end
 							end
@@ -2754,11 +2767,11 @@ run(function()
 			Default = {v == 'Criminal' and '1/AK-47' or '1/MP5', '2/Remington 870'},
 			Placeholder = 'priority/item',
 			Function = function(list)
-				table.clear(sortedpickups[v])
+				table.clear(pickupList[v])
 				for _, entry in list do
 					local tab = entry:split('/')
 					local ind = tonumber(tab[1])
-					sortedpickups[v][ind or 999] = tab[2]
+					pickupList[v][ind or 999] = tab[2]
 				end
 			end
 		})
@@ -3078,13 +3091,14 @@ run(function()
 						for _, v in entitylib.List do
 							if part:IsDescendantOf(v.Character) and entitylib.isVulnerable(v, true) then
 								if #sounds > 0 and not played then
-									local obj = Instance.new('Sound')
-									obj.SoundId = sounds[math.random(1, #sounds)]
-									obj.PlayOnRemove = true
-									obj.PlaybackSpeed = PitchShift.Enabled and 1 + ((0.5 - math.random()) / 10) or 1
-									obj.Volume = Volume.Value
-									obj.Parent = workspace
-									obj:Destroy()
+									local sound = Instance.new('Sound')
+									sound.SoundId = sounds[math.random(1, #sounds)]
+									sound.PlayOnRemove = true
+									sound.PlaybackSpeed = PitchShift.Enabled and 1 + ((0.5 - math.random()) / 10) or 1
+									sound.Volume = Volume.Value
+									sound.Parent = workspace
+									sound:Destroy()
+	
 									played = task.defer(function()
 										played = nil
 									end)
@@ -3106,8 +3120,8 @@ run(function()
 		Placeholder = 'sound id (roblox or file path)',
 		Function = function(list)
 			table.clear(sounds)
-			for i, v in list or {} do
-				sounds[i] = v:find('rbxasset') and v or isfile(v) and getcustomasset(v) or nil
+			for index, sound in list or {} do
+				sounds[index] = sound:find('rbxasset') and sound or isfile(sound) and getcustomasset(sound) or nil
 			end
 		end
 	})
@@ -3136,13 +3150,13 @@ run(function()
 			if callback then
 				KillSound:Clean(vapeEvents.PlayerKill.Event:Connect(function(plr)
 					if plr == lplr.Name and #sounds > 0 then
-						local obj = Instance.new('Sound')
-						obj.SoundId = sounds[math.random(1, #sounds)]
-						obj.PlayOnRemove = true
-						obj.PlaybackSpeed = PitchShift.Enabled and 1 + ((0.5 - math.random()) / 10) or 1
-						obj.Volume = Volume.Value
-						obj.Parent = workspace
-						obj:Destroy()
+						local sound = Instance.new('Sound')
+						sound.SoundId = sounds[math.random(1, #sounds)]
+						sound.PlayOnRemove = true
+						sound.PlaybackSpeed = PitchShift.Enabled and 1 + ((0.5 - math.random()) / 10) or 1
+						sound.Volume = Volume.Value
+						sound.Parent = workspace
+						sound:Destroy()
 					end
 				end))
 			end
@@ -3154,8 +3168,8 @@ run(function()
 		Placeholder = 'sound id (roblox or file path)',
 		Function = function(list)
 			table.clear(sounds)
-			for i, v in list or {} do
-				sounds[i] = v:find('rbxasset') and v or isfile(v) and getcustomasset(v) or nil
+			for index, sound in list or {} do
+				sounds[index] = sound:find('rbxasset') and sound or isfile(sound) and getcustomasset(sound) or nil
 			end
 		end
 	})
@@ -3184,11 +3198,11 @@ run(function()
 	local moveSpring = Spring.new()
 	local aimSpring = Spring.new({Speed = 15})
 	
-	local function ToolAdded(obj)
-		if obj and obj:IsA('Tool') then
+	local function ToolAdded(tool)
+		if tool and tool:IsA('Tool') then
 			if old then
-				for _, v in old:QueryDescendants('BasePart, Texture, Decal') do
-					v.LocalTransparencyModifier = 0
+				for _, inst in old:QueryDescendants('BasePart, Texture, Decal') do
+					inst.LocalTransparencyModifier = 0
 				end
 			end
 	
@@ -3196,46 +3210,46 @@ run(function()
 				vtool:Destroy()
 			end
 	
-			old = obj
-			vtool = obj:Clone()
+			old = tool
+			vtool = tool:Clone()
 			handle = vtool:FindFirstChild('Handle')
 			vtool.Parent = gameCamera
 	
-			for _, v in vtool:QueryDescendants('BasePart') do
-				v.Material = ForceField.Enabled and Enum.Material.ForceField or v.Material
-				v.Color = ForceField.Enabled and Color3.fromHSV(ColorSl.Hue, ColorSl.Sat, ColorSl.Value) or v.Color
+			for _, inst in vtool:QueryDescendants('BasePart') do
+				inst.Material = ForceField.Enabled and Enum.Material.ForceField or inst.Material
+				inst.Color = ForceField.Enabled and Color3.fromHSV(ColorSl.Hue, ColorSl.Sat, ColorSl.Value) or inst.Color
 			end
 	
-			for _, v in old:QueryDescendants('BasePart, Texture, Decal') do
-				v.LocalTransparencyModifier = 1
+			for _, inst in old:QueryDescendants('BasePart, Texture, Decal') do
+				inst.LocalTransparencyModifier = 1
 			end
 		end
 	end
 	
-	local function EntityAdded(ent)
+	local function EntityAdded(entity)
 		if vtool then
 			vtool:Destroy()
 			vtool = nil
 			handle = nil
 		end
 	
-		Viewmodel:Clean(ent.Character.ChildAdded:Connect(ToolAdded))
-		Viewmodel:Clean(ent.Character.ChildRemoved:Connect(function(obj)
-			if obj == old then
+		Viewmodel:Clean(entity.Character.ChildAdded:Connect(ToolAdded))
+		Viewmodel:Clean(entity.Character.ChildRemoved:Connect(function(tool)
+			if tool == old then
 				if vtool then
 					vtool:Destroy()
 					vtool = nil
 				end
 	
-				for _, v in old:QueryDescendants('BasePart, Texture, Decal') do
-					v.LocalTransparencyModifier = 0
+				for _, inst in old:QueryDescendants('BasePart, Texture, Decal') do
+					inst.LocalTransparencyModifier = 0
 				end
 	
 				old = nil
 			end
 		end))
 	
-		ToolAdded(ent.Character:FindFirstChildWhichIsA('Tool'))
+		ToolAdded(entity.Character:FindFirstChildWhichIsA('Tool'))
 	end
 	
 	Viewmodel = vape.Legit:CreateModule({
@@ -3254,6 +3268,7 @@ run(function()
 				Viewmodel:Clean(runService.RenderStepped:Connect(function(dt)
 					if handle then
 						moveSpring.Target = entitylib.isAlive and entitylib.character.RootPart.AssemblyLinearVelocity * 0.005 or Vector3.zero
+	
 						if Sway.Enabled then
 							if moveSpring.Target.Magnitude > 0.1 then
 								moveSpring.Target += (gameCamera.CFrame * CFrame.new(math.sin(tick() * 10) * 0.06, 0, 0)).Position - gameCamera.CFrame.Position
@@ -3272,9 +3287,10 @@ run(function()
 				TracerHook:Remove('Viewmodel')
 	
 				if old then
-					for _, v in old:QueryDescendants('BasePart, Texture, Decal') do
-						v.LocalTransparencyModifier = 0
+					for _, inst in old:QueryDescendants('BasePart, Texture, Decal') do
+						inst.LocalTransparencyModifier = 0
 					end
+	
 					old = nil
 				end
 	
@@ -3315,7 +3331,7 @@ run(function()
 	ForceField = Viewmodel:CreateToggle({
 		Name = 'ForceField Effect',
 		Function = function(callback)
-			ColorSl.Object.Visible = callback
+			ColorSl.toolect.Visible = callback
 			if callback and Viewmodel.Enabled then
 				Viewmodel:Toggle()
 				Viewmodel:Toggle()
