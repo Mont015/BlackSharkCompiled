@@ -41,13 +41,11 @@ for _, folder in {'newvape', 'newvape/games', 'newvape/profiles', 'newvape/asset
 end
 
 if not shared.VapeDeveloper then
-	local _, subbed = pcall(function()
-		return game:HttpGet('https://github.com/Mont015/BlackSharkCompiled')
-	end)
-
 	local assetVer = '1'
-	local commit = subbed:find('currentOid')
-	commit = commit and subbed:sub(commit + 13, commit + 52) or nil
+	local success, response = pcall(function()
+		return game:HttpGet('https://api.github.com/repos/Mont015/BlackSharkCompiled/commits/main', true)
+	end)
+	local commit = success and response:match('"sha"%s*:%s*"([0-9a-f]+)"') or nil
 	commit = commit and #commit == 40 and commit or 'main'
 
 	if commit == 'main' or (isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt') or '') ~= commit then
