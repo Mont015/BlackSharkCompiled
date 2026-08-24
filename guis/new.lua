@@ -222,6 +222,7 @@ do
 	getvapeasset = function(path)
 	return vapeAssets[path] or ''
 end
+end
 
 local tween = setmetatable({}, {
 	__index = function()
