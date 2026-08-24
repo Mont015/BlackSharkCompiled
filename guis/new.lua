@@ -219,11 +219,8 @@ do
 		return (callback or readfile)(path)
 	end
 
-	getvapeasset = not inputService.TouchEnabled and getcustomasset and function(path)
-		return downloadFile(path, getcustomasset)
-	end or function(path)
-		return vapeAssets[path] or ''
-	end
+	getvapeasset = function(path)
+	return vapeAssets[path] or ''
 end
 
 local tween = setmetatable({}, {
