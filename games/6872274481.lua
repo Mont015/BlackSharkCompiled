@@ -2007,7 +2007,7 @@ run(function()
 	})
 end)
 
-ocal Attacking
+local Attacking
 run(function()
 	local Killaura
 	local Targets
