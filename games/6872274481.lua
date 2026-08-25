@@ -2007,7 +2007,7 @@ run(function()
 	})
 end)
 
-local Attacking
+ocal Attacking
 run(function()
 	local Killaura
 	local Targets
@@ -2038,6 +2038,7 @@ run(function()
 	local anims, AnimDelay, AnimTween, armC0 = vape.Libraries.auraanims, tick()
 	local AttackRemote
 	local LastManualSwing = 0
+	local NextAttack = 0
 
 	local function getAttackRemote()
 		if AttackRemote then
@@ -2045,11 +2046,31 @@ run(function()
 		end
 
 		local success, remote = pcall(function()
-			local clientRemote = bedwars.Client:Get(remotes.AttackEntity)
-			return clientRemote and clientRemote.instance
+			return bedwars.Client:Get(remotes.AttackEntity)
 		end)
 		AttackRemote = success and remote or nil
 		return AttackRemote
+	end
+
+	local function sendAttack(attackTable)
+		local remote = getAttackRemote()
+		if not remote then
+			return false
+		end
+
+		local success = pcall(function()
+			if remote.SendToServer then
+				remote:SendToServer(attackTable)
+			elseif remote.instance and remote.instance.FireServer then
+				remote.instance:FireServer(attackTable)
+			else
+				error('Attack remote is unavailable')
+			end
+		end)
+		if not success then
+			AttackRemote = nil
+		end
+		return success
 	end
 
 	local function getAttackData()
@@ -2097,24 +2118,7 @@ run(function()
 					end)
 				end
 
-				if Animation.Enabled and not (identifyexecutor and table.find({'Argon', 'Delta'}, ({identifyexecutor()})[1])) then
-					local fake = {
-						Controllers = {
-							ViewmodelController = {
-								isVisible = function()
-									return not Attacking
-								end,
-								playAnimation = function(...)
-									if not Attacking then
-										bedwars.ViewmodelController:playAnimation(select(2, ...))
-									end
-								end
-							}
-						}
-					}
-					debug.setupvalue(oldSwing or bedwars.SwordController.playSwordEffect, 6, fake)
-					debug.setupvalue(bedwars.ScytheController.playLocalAnimation, 3, fake)
-
+				if Animation.Enabled then
 					task.spawn(function()
 						local started = false
 						repeat
@@ -2158,7 +2162,7 @@ run(function()
 					Attacking = false
 					store.KillauraTarget = nil
 					if sword then
-						local plrs = entitylib.AllPosition({
+						local targetsOk, plrs = pcall(entitylib.AllPosition, {
 							Range = SwingRange.Value,
 							Wallcheck = Targets.Walls.Enabled or nil,
 							Part = 'RootPart',
@@ -2167,9 +2171,10 @@ run(function()
 							Limit = MaxTargets.Value,
 							Sort = sortmethods[Sort.Value]
 						})
+						plrs = targetsOk and plrs or {}
 
 						if #plrs > 0 then
-							switchItem(sword.tool)
+							switchItem(sword.tool, 0)
 							local selfpos = entitylib.character.RootPart.Position
 							local localfacing = entitylib.character.RootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
 
@@ -2192,32 +2197,24 @@ run(function()
 									Attacking = true
 									store.KillauraTarget = v
 									if not Swing.Enabled and AnimDelay < tick() and not LegitAura.Enabled then
-										AnimDelay = tick() + (meta.sword.respectAttackSpeedForEffects and meta.sword.attackSpeed or 0.11)
-										bedwars.SwordController:playSwordEffect(meta, false)
-										if meta.displayName and meta.displayName:find(' Scythe') then
-											bedwars.ScytheController:playLocalAnimation()
-										end
-
-										if vape.ThreadFix then
-											setthreadidentity(8)
-										end
+										local attackSpeed = tonumber(meta.sword.attackSpeed) or 0.11
+										AnimDelay = tick() + (meta.sword.respectAttackSpeedForEffects and attackSpeed or 0.11)
+										pcall(function()
+											bedwars.SwordController:playSwordEffect(meta, false)
+											if meta.displayName and meta.displayName:find(' Scythe') then
+												bedwars.ScytheController:playLocalAnimation()
+											end
+										end)
 									end
 								end
 
-								if delta.Magnitude > AttackRange.Value then continue end
+								if delta.Magnitude > AttackRange.Value or tick() < NextAttack then continue end
 
 								local actualRoot = v.RootPart or v.Character.PrimaryPart
 								if actualRoot then
 									local dir = CFrame.lookAt(selfpos, actualRoot.Position).LookVector
 									local pos = selfpos + dir * math.max(delta.Magnitude - 14.399, 0)
-									bedwars.SwordController.lastAttack = workspace:GetServerTimeNow()
-									store.attackReach = (delta.Magnitude * 100) // 1 / 100
-									store.attackReachUpdate = tick() + 1
-
-									local remote = getAttackRemote()
-									if remote then
-										local success = pcall(function()
-											remote:FireServer({
+									local attackTable = {
 										weapon = sword.tool,
 										chargedAttack = {chargeRatio = 0},
 										entityInstance = v.Character,
@@ -2229,11 +2226,10 @@ run(function()
 											targetPosition = {value = actualRoot.Position},
 											selfPosition = {value = pos}
 										}
-											})
-										end)
-										if not success then
-											AttackRemote = nil
-										end
+									}
+									if sendAttack(attackTable) then
+										bedwars.SwordController.lastAttack = workspace:GetServerTimeNow()
+										NextAttack = tick() + math.max(tonumber(meta.sword.attackSpeed) or 0.11, 0.05)
 									end
 								end
 							end
@@ -2262,6 +2258,7 @@ run(function()
 				until not Killaura.Enabled
 			else
 				store.KillauraTarget = nil
+				NextAttack = 0
 				for _, v in Boxes do
 					v.Adornee = nil
 				end
@@ -2273,8 +2270,6 @@ run(function()
 						lplr.PlayerGui.MobileUI['2'].Visible = true
 					end)
 				end
-				debug.setupvalue(oldSwing or bedwars.SwordController.playSwordEffect, 6, bedwars.Knit)
-				debug.setupvalue(bedwars.ScytheController.playLocalAnimation, 3, bedwars.Knit)
 				Attacking = false
 				if armC0 then
 					AnimTween = tweenService:Create(gameCamera.Viewmodel.RightHand.RightWrist, TweenInfo.new(AnimationTween.Enabled and 0.001 or 0.3, Enum.EasingStyle.Exponential), {
@@ -2335,7 +2330,8 @@ run(function()
 	})
 	Sort = Killaura:CreateDropdown({
 		Name = 'Target Mode',
-		List = methods
+		List = methods,
+		Default = 'Distance'
 	})
 	Mouse = Killaura:CreateToggle({Name = 'Require mouse down'})
 	Swing = Killaura:CreateToggle({Name = 'No Swing'})
@@ -2523,7 +2519,7 @@ run(function()
 		Tooltip = 'Only attacks while swinging manually'
 	})
 end)
-
+																												
 run(function()
 	local Value
 	local CameraDir
