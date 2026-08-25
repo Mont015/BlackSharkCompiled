@@ -1,8 +1,8 @@
-local isfile = isfile or function(file)
-	local suc, res = pcall(function()
-		return readfile(file)
-	end)
-	return suc and res ~= nil and res ~= ''
+-- An empty cache file is not a valid downloaded file. Some executors still
+-- report one as existing, so check its contents before deciding to skip a download.
+local function isfile(file)
+	local suc, res = pcall(readfile, file)
+	return suc and type(res) == 'string' and res ~= ''
 end
 local delfile = delfile or function(file)
 	writefile(file, '')
