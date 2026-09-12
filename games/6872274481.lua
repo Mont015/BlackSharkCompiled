@@ -2904,6 +2904,7 @@ Value = LongJump:CreateSlider({
 CameraDir = LongJump:CreateToggle({
 	Name = 'Camera Direction'
 })
+end)
 
 
 run(function()
