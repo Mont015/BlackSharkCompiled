@@ -2060,7 +2060,7 @@ run(function()
 	end
 
 	local function getAttackData()
-		if not entitylib.isAlive or not entitylib.character.RootPart then
+		if not entitylib.isAlive or not entitylib.character or not entitylib.character.RootPart then
 			return false
 		end
 
@@ -2120,7 +2120,7 @@ run(function()
 		local targets = {}
 		for _, entity in entities do
 			local targetRoot = entity.RootPart or (entity.Character and entity.Character.PrimaryPart)
-			if not targetRoot then continue end
+			if not targetRoot or not targetRoot.Parent then continue end
 
 			local offset = targetRoot.Position - origin
 			local horizontalOffset = offset * Vector3.new(1, 0, 1)
@@ -2176,7 +2176,7 @@ run(function()
 	end
 
 	local function attackTarget(sword, root, target)
-		if not target.Entity.Character or not target.RootPart then return false end
+		if not root or not root.Parent or not target.Entity.Character or not target.Entity.Character.Parent or not target.RootPart or not target.RootPart.Parent then return false end
 
 		local origin = root.Position
 		local direction = target.RootPart.Position - origin
@@ -2216,8 +2216,13 @@ run(function()
 		end
 
 		for index, particle in Particles do
-			particle.Position = targets[index] and targets[index].RootPart.Position or Vector3.new(9e9, 9e9, 9e9)
-			particle.Parent = targets[index] and gameCamera or nil
+			if targets[index] and targets[index].RootPart and targets[index].RootPart.Parent then
+				particle.Position = targets[index].RootPart.Position
+				particle.Parent = gameCamera
+			else
+				particle.Position = Vector3.new(9e9, 9e9, 9e9)
+				particle.Parent = nil
+			end
 		end
 	end
 
@@ -2242,8 +2247,15 @@ run(function()
 						local started = false
 						repeat
 							if Attacking then
+								local viewmodel = gameCamera and gameCamera:FindFirstChild('Viewmodel')
+								local rightHand = viewmodel and viewmodel:FindFirstChild('RightHand')
+								local wrist = rightHand and rightHand:FindFirstChild('RightWrist')
+								if not wrist then
+									task.wait()
+									continue
+								end
 								if not armC0 then
-									armC0 = gameCamera.Viewmodel.RightHand.RightWrist.C0
+									armC0 = wrist.C0
 								end
 								local first = not started
 								started = true
@@ -2253,7 +2265,7 @@ run(function()
 								end
 
 								for _, v in anims[AnimationMode.Value] do
-									AnimTween = tweenService:Create(gameCamera.Viewmodel.RightHand.RightWrist, TweenInfo.new(first and (AnimationTween.Enabled and 0.001 or 0.1) or v.Time / math.max(AnimationSpeed.Value, 0.1), Enum.EasingStyle.Linear), {
+									AnimTween = tweenService:Create(wrist, TweenInfo.new(first and (AnimationTween.Enabled and 0.001 or 0.1) or v.Time / math.max(AnimationSpeed.Value, 0.1), Enum.EasingStyle.Linear), {
 										C0 = armC0 * v.CFrame
 									})
 									AnimTween:Play()
@@ -2263,9 +2275,15 @@ run(function()
 								end
 							elseif started then
 								started = false
-								AnimTween = tweenService:Create(gameCamera.Viewmodel.RightHand.RightWrist, TweenInfo.new(AnimationTween.Enabled and 0.001 or 0.3, Enum.EasingStyle.Exponential), {
-									C0 = armC0
-								})
+								local viewmodel = gameCamera and gameCamera:FindFirstChild('Viewmodel')
+								local rightHand = viewmodel and viewmodel:FindFirstChild('RightHand')
+								local wrist = rightHand and rightHand:FindFirstChild('RightWrist')
+								if wrist and armC0 then
+									AnimTween = tweenService:Create(wrist, TweenInfo.new(AnimationTween.Enabled and 0.001 or 0.3, Enum.EasingStyle.Exponential), {
+										C0 = armC0
+									})
+									AnimTween:Play()
+								end
 								AnimTween:Play()
 							end
 
@@ -2313,7 +2331,7 @@ run(function()
 					end
 
 					updateVisuals(targets)
-					if Face.Enabled and primary and primary.RootPart and root then
+					if Face.Enabled and primary and primary.RootPart and primary.RootPart.Parent and root and root.Parent then
 						local position = primary.RootPart.Position
 						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(position.X, root.Position.Y + 0.001, position.Z))
 					end
@@ -2334,10 +2352,15 @@ run(function()
 					end)
 				end
 				if armC0 then
-					AnimTween = tweenService:Create(gameCamera.Viewmodel.RightHand.RightWrist, TweenInfo.new(AnimationTween.Enabled and 0.001 or 0.3, Enum.EasingStyle.Exponential), {
-						C0 = armC0
-					})
-					AnimTween:Play()
+					local viewmodel = gameCamera and gameCamera:FindFirstChild('Viewmodel')
+					local rightHand = viewmodel and viewmodel:FindFirstChild('RightHand')
+					local wrist = rightHand and rightHand:FindFirstChild('RightWrist')
+					if wrist then
+						AnimTween = tweenService:Create(wrist, TweenInfo.new(AnimationTween.Enabled and 0.001 or 0.3, Enum.EasingStyle.Exponential), {
+							C0 = armC0
+						})
+						AnimTween:Play()
+					end
 				end
 			end
 		end,
@@ -2581,8 +2604,7 @@ run(function()
 		Tooltip = 'Only attacks while swinging manually'
 	})
 end)
-
-
+																			
 run(function()
 	local Value
 	local CameraDir
