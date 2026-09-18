@@ -2328,20 +2328,14 @@ run(function()
 						if now >= NextAttack then
 							local targetIndex = ((AttackIndex - 1) % #attackable) + 1
 							local target = attackable[targetIndex]
-							local equipped, switched = pcall(switchItem, sword.tool)
-							if not equipped then
-								NextAttack = tick() + 0.1
-							elseif switched then
-								-- Let the equip remote reach the server before the first hit.
-								NextAttack = tick() + 0.03
+							pcall(switchItem, sword.tool, 0)
+
+							local sent = attackTarget(sword, root, target)
+							if sent then
+								AttackIndex = (targetIndex % #attackable) + 1
+								NextAttack = tick() + math.max(tonumber(meta.sword.attackSpeed) or 0.11, 0.05)
 							else
-								local sent = attackTarget(sword, root, target)
-								if sent then
-									AttackIndex = (targetIndex % #attackable) + 1
-									NextAttack = tick() + math.max(tonumber(meta.sword.attackSpeed) or 0.11, 0.05)
-								else
-									NextAttack = tick() + 0.1
-								end
+								NextAttack = tick() + 0.1
 							end
 						end
 					else
