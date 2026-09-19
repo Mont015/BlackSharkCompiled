@@ -10,19 +10,23 @@ local loadstring = function(...)
 	return res
 end
 local queue_on_teleport = queue_on_teleport or function() end
-local isfile = isfile or function(file)
-	local suc, res = pcall(function()
-		return readfile(file)
-	end)
-	return suc and res ~= nil and res ~= ''
+local function isfile(file)
+	local suc, res = pcall(readfile, file)
+	return suc and type(res) == 'string' and res ~= ''
 end
 local cloneref = cloneref or function(obj)
 	return obj
 end
 local playersService = cloneref(game:GetService('Players'))
+local watermark = '--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.\n'
 
 local function downloadFile(path, func)
-	if not isfile(path) then
+	local cached = isfile(path)
+	if cached and path:sub(-4) == '.lua' then
+		local data = readfile(path)
+		cached = data:sub(1, #watermark) == watermark
+	end
+	if not cached then
 		local suc, res = pcall(function()
 			return game:HttpGet('https://raw.githubusercontent.com/Mont015/BlackSharkCompiled/main/'..select(1, path:gsub('newvape/', '')), true)
 		end)
@@ -30,11 +34,25 @@ local function downloadFile(path, func)
 			error(res)
 		end
 		if path:find('.lua') then
-			res = '--This watermark is used to delete the file if its cached, remove it to make the file persist after vape updates.\n'..res
+			res = watermark..res
 		end
 		writefile(path, res)
 	end
 	return (func or readfile)(path)
+end
+
+local function loadModule(path, name, ...)
+	local chunk = loadstring(downloadFile(path), name)
+	if not chunk and not shared.VapeDeveloper then
+		-- A stale or partially written cache file must never leave the game
+		-- running only Universal. Empty it and retry from GitHub once.
+		writefile(path, '')
+		chunk = loadstring(downloadFile(path), name)
+	end
+	if not chunk then
+		error('Unable to load '..name)
+	end
+	return chunk(...)
 end
 
 local function finishLoading()
@@ -86,20 +104,20 @@ local gui = 'new'--readfile('newvape/profiles/gui.txt')
 if not isfolder('newvape/assets/'..gui) then
 	makefolder('newvape/assets/'..gui)
 end
-vape = loadstring(downloadFile('newvape/guis/'..gui..'.lua'), 'gui')()
+vape = loadModule('newvape/guis/'..gui..'.lua', 'gui')
 shared.vape = vape
 
 if not shared.VapeIndependent then
-	loadstring(downloadFile('newvape/games/universal.lua'), 'universal')()
+	loadModule('newvape/games/universal.lua', 'universal')
 	if isfile('newvape/games/'..game.PlaceId..'.lua') then
-		loadstring(readfile('newvape/games/'..game.PlaceId..'.lua'), tostring(game.PlaceId))(...)
+		loadModule('newvape/games/'..game.PlaceId..'.lua', tostring(game.PlaceId), ...)
 	else
 		if not shared.VapeDeveloper then
 			local suc, res = pcall(function()
 				return game:HttpGet('https://raw.githubusercontent.com/Mont015/BlackSharkCompiled/main/games/'..game.PlaceId..'.lua', true)
 			end)
 			if suc and res ~= '404: Not Found' then
-				loadstring(downloadFile('newvape/games/'..game.PlaceId..'.lua'), tostring(game.PlaceId))(...)
+				loadModule('newvape/games/'..game.PlaceId..'.lua', tostring(game.PlaceId), ...)
 			end
 		end
 	end
