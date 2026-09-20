@@ -5416,13 +5416,13 @@ return folder or result[1]
 		clone.CanCollide = false
 		clone.CanQuery = false
 		clone.CastShadow = false
-		clone.Size = handle.Size
-		clone.CFrame = handle.CFrame
+		clone.Size = meshPart.Size
+        clone.CFrame = handle.CFrame * CFrame.new(0, 0, 0) * CFrame.Angles(math.rad(90), 0, 0)
 		clone.Parent = tool
 		local weld = Instance.new('WeldConstraint')
-		weld.Part0 = clone
-		weld.Part1 = handle
-		weld.Parent = clone
+        weld.Part0 = handle
+        weld.Part1 = clone
+        weld.Parent = clone
 	end
 	local function applyPack(packFolder)
 		local vm = workspace.Camera:FindFirstChild('Viewmodel')
