@@ -5335,31 +5335,18 @@ end)
 run(function()
 	local TexturePacks
 	local PackSelect
+
 	local packIds = {
 		Pack1 = 85636882121599,
 		Pack2 = 93825538413084,
 		Pack3 = 104066331647966,
 		Pack4 = 79748050012155
 	}
+
 	local loadedPacks = {}
 	local activeConnections = {}
 	local originalTransparencies = {}
-	local nameMap = {
-		wood_sword = 'wood',
-		stone_sword = 'stone',
-		iron_sword = 'iron',
-		diamond_sword = 'diamond',
-		emerald_sword = 'emerald',
-		rageblade = 'rageblade',
-		wood_axe = 'woodaxe',
-		stone_axe = 'stoneaxe',
-		iron_axe = 'ironaxe',
-		diamond_axe = 'diamondaxe',
-		wood_pickaxe = 'woodpick',
-		stone_pickaxe = 'stonepick',
-		iron_pickaxe = 'ironpick',
-		diamond_pickaxe = 'diamondpick'
-	}
+
 	local function loadPack(name)
 		if loadedPacks[name] then return loadedPacks[name] end
 		local id = packIds[name]
@@ -5372,44 +5359,22 @@ run(function()
 			return nil
 		end
 		result[1].Parent = game:GetService('ReplicatedStorage')
-local folder = result[1]:FindFirstChildOfClass('Folder')
-loadedPacks[name] = folder or result[1]
-return folder or result[1]
+		local folder = result[1]:FindFirstChildOfClass('Folder')
+		loadedPacks[name] = folder or result[1]
+		return folder or result[1]
 	end
-	local function hideOriginal(tool)
-		for _, v in tool:GetDescendants() do
-			if v:IsA('BasePart') and v.Name ~= 'BlackSharkTexture' then
-				originalTransparencies[v] = v.Transparency
-				v.Transparency = 1
-			end
-		end
-	end
-	local function restoreOriginal(tool)
-		for _, v in tool:GetDescendants() do
-			if v:IsA('BasePart') and originalTransparencies[v] ~= nil then
-				v.Transparency = originalTransparencies[v]
-				originalTransparencies[v] = nil
-			end
-		end
-		for _, v in tool:GetChildren() do
-			if v.Name == 'BlackSharkTexture' then
-				v:Destroy()
-			end
-		end
-	end
-	local function applyToTool(tool, packFolder)
-		local packKey = nameMap[tool.Name]
-		if not packKey then return end
-		local meshPart = packFolder:FindFirstChild(packKey)
-		if not meshPart then return end
-		local handle = tool:FindFirstChild('Handle')
+
+	local function applyToAccessory(accessory, packFolder)
+		local handle = accessory:FindFirstChild('Handle')
 		if not handle then return end
-		for _, v in tool:GetChildren() do
-			if v.Name == 'BlackSharkTexture' then
-				v:Destroy()
-			end
-		end
-		hideOriginal(tool)
+
+		local meshPart = packFolder:FindFirstChild(accessory.Name)
+		if not meshPart then return end
+
+		if handle:FindFirstChild('BlackSharkTexture') then return end
+
+		handle.Transparency = 1
+
 		local clone = meshPart:Clone()
 		clone.Name = 'BlackSharkTexture'
 		clone.Anchored = false
@@ -5417,58 +5382,86 @@ return folder or result[1]
 		clone.CanQuery = false
 		clone.CastShadow = false
 		clone.Size = meshPart.Size
-        clone.CFrame = handle.CFrame * CFrame.new(0, 0, 0) * CFrame.Angles(math.rad(90), 0, 0)
-		clone.Parent = tool
+		clone.CFrame = handle.CFrame
+		clone.Parent = handle
+
 		local weld = Instance.new('WeldConstraint')
-        weld.Part0 = handle
-        weld.Part1 = clone
-        weld.Parent = clone
+		weld.Part0 = handle
+		weld.Part1 = clone
+		weld.Parent = clone
 	end
+
 	local function applyPack(packFolder)
 		local vm = workspace.Camera:FindFirstChild('Viewmodel')
 		if not vm then return end
-		for _, tool in vm:GetChildren() do
-			if tool:IsA('Model') or tool:IsA('Tool') then
-				applyToTool(tool, packFolder)
+
+		for _, acc in vm:GetChildren() do
+			if acc:IsA('Accessory') then
+				applyToAccessory(acc, packFolder)
 			end
 		end
-		local conn = vm.ChildAdded:Connect(function(tool)
+
+		local conn = vm.ChildAdded:Connect(function(acc)
 			task.wait(0.05)
-			if tool:IsA('Model') or tool:IsA('Tool') then
-				applyToTool(tool, packFolder)
+			if acc:IsA('Accessory') then
+				applyToAccessory(acc, packFolder)
 			end
 		end)
 		table.insert(activeConnections, conn)
+
+		if lplr.Character then
+			for _, acc in lplr.Character:GetChildren() do
+				if acc:IsA('Accessory') then
+					applyToAccessory(acc, packFolder)
+				end
+			end
+		end
+
 		local charConn = lplr.CharacterAdded:Connect(function(char)
-			task.wait(0.5)
-			for _, tool in char:GetChildren() do
-				if tool:IsA('Tool') then
-					applyToTool(tool, packFolder)
+			task.wait(0.3)
+			for _, acc in char:GetChildren() do
+				if acc:IsA('Accessory') then
+					applyToAccessory(acc, packFolder)
 				end
 			end
 		end)
 		table.insert(activeConnections, charConn)
 	end
+
 	local function clearAll()
 		for _, conn in activeConnections do
 			conn:Disconnect()
 		end
 		table.clear(activeConnections)
+
 		local vm = workspace.Camera:FindFirstChild('Viewmodel')
 		if vm then
-			for _, tool in vm:GetChildren() do
-				restoreOriginal(tool)
-			end
-		end
-		if lplr.Character then
-			for _, tool in lplr.Character:GetChildren() do
-				if tool:IsA('Tool') then
-					restoreOriginal(tool)
+			for _, acc in vm:GetChildren() do
+				if acc:IsA('Accessory') then
+					local handle = acc:FindFirstChild('Handle')
+					if handle then
+						handle.Transparency = 0
+						local tex = handle:FindFirstChild('BlackSharkTexture')
+						if tex then tex:Destroy() end
+					end
 				end
 			end
 		end
-		table.clear(originalTransparencies)
+
+		if lplr.Character then
+			for _, acc in lplr.Character:GetChildren() do
+				if acc:IsA('Accessory') then
+					local handle = acc:FindFirstChild('Handle')
+					if handle then
+						handle.Transparency = 0
+						local tex = handle:FindFirstChild('BlackSharkTexture')
+						if tex then tex:Destroy() end
+					end
+				end
+			end
+		end
 	end
+
 	TexturePacks = vape.Categories.Render:CreateModule({
 		Name = 'TexturePack',
 		Function = function(callback)
@@ -5483,6 +5476,7 @@ return folder or result[1]
 		end,
 		Tooltip = 'Apply custom sword texture packs'
 	})
+
 	PackSelect = TexturePacks:CreateDropdown({
 		Name = 'Pack',
 		List = {'Pack1', 'Pack2', 'Pack3', 'Pack4'},
