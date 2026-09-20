@@ -4135,10 +4135,7 @@ run(function()
 			screenGui.DisplayOrder = 998
 			screenGui.IgnoreGuiInset = true
 			screenGui.ResetOnSpawn = false
-			pcall(function() screenGui.Parent = game:GetService('CoreGui') end)
-			if not screenGui.Parent then
-				screenGui.Parent = game:GetService('Players').LocalPlayer:WaitForChild('PlayerGui')
-			end
+			screenGui.Parent = game:GetService('Players').LocalPlayer:WaitForChild('PlayerGui')
 			ESPPreview:Clean(screenGui)
 
 			local bg = Instance.new('Frame')
