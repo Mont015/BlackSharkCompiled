@@ -7618,7 +7618,7 @@ run(function()
 		end
 	})
 	Clear = AutoHotbar:CreateToggle({Name = 'Clear Hotbar'})
-	List = AutoHotbar:CreateHotbarList({})
+	List = {ListEnabled = {}, Value = {}}
 end)
 
 run(function()
