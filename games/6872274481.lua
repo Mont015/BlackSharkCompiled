@@ -5333,112 +5333,201 @@ run(function()
 end)
 
 run(function()
-	local TexturePack
-	local Pack
-	local oldTextures = {}
+	local TexturePacks
+	local PackSelect
 
-	local packs = {
-		Pack1 = 'rbxassetid://129327270849921',
-		Pack2 = 'rbxassetid://125849770306191',
-		Pack3 = 'rbxassetid://131717105043734',
-		Pack4 = 'rbxassetid://96936645750128'
+	local packIds = {
+		Pack1 = 85636882121599,
+		Pack2 = 93825538413084,
+		Pack3 = 104066331647966,
+		Pack4 = 79748050012155
 	}
 
-	local function applyTexture(textureId)
-		oldTextures = {}
-		for _, player in game:GetService('Players'):GetPlayers() do
-			local char = player.Character
-			if not char then continue end
-			for _, part in char:GetDescendants() do
-				if part:IsA('SpecialMesh') or part:IsA('MeshPart') then
-					oldTextures[part] = part.TextureID or part.TextureId
-					if part:IsA('SpecialMesh') then
-						part.TextureId = textureId
-					else
-						part.TextureID = textureId
-					end
-				end
+	local loadedPacks = {}
+	local activeConnections = {}
+
+	local function weldModel(model)
+		for _, v in model:GetDescendants() do
+			if v:IsA('Part') or v:IsA('MeshPart') or v:IsA('UnionOperation') then
+				local weld = Instance.new('WeldConstraint', model)
+				weld.Part0 = model.PrimaryPart
+				weld.Part1 = v
+				v.Anchored = false
+				v.CanCollide = false
 			end
 		end
 	end
 
-	local function restoreTextures()
-		for part, texture in oldTextures do
-			if part and part.Parent then
-				if part:IsA('SpecialMesh') then
-					part.TextureId = texture
-				else
-					part.TextureID = texture
-				end
+	local function hideOriginal(tool)
+		for _, v in tool:GetDescendants() do
+			if v:IsA('Part') or v:IsA('MeshPart') or v:IsA('UnionOperation') then
+				v.Transparency = 1
 			end
 		end
-		table.clear(oldTextures)
 	end
 
-	local function applyToSwords()
-		if not TexturePack.Enabled then return end
-		local textureId = packs[Pack.Value]
-		if not textureId then return end
+	local function getPackIndex(packModel)
+		local index = {}
+		local swords = {'wood', 'stone', 'iron', 'diamond', 'emerald', 'rageblade'}
+		local tools = {'woodaxe', 'stoneaxe', 'ironaxe', 'diamondaxe', 'woodpick', 'stonepick', 'ironpick', 'diamondpick'}
+		local nameMap = {
+			wood = 'wood_sword',
+			stone = 'stone_sword',
+			iron = 'iron_sword',
+			diamond = 'diamond_sword',
+			emerald = 'emerald_sword',
+			rageblade = 'rageblade',
+			woodaxe = 'wood_axe',
+			stoneaxe = 'stone_axe',
+			ironaxe = 'iron_axe',
+			diamondaxe = 'diamond_axe',
+			woodpick = 'wood_pickaxe',
+			stonepick = 'stone_pickaxe',
+			ironpick = 'iron_pickaxe',
+			diamondpick = 'diamond_pickaxe'
+		}
+		for _, key in swords do
+			local part = packModel:FindFirstChild(key)
+			if part then
+				index[nameMap[key]] = part
+			end
+		end
+		for _, key in tools do
+			local part = packModel:FindFirstChild(key)
+			if part then
+				index[nameMap[key]] = part
+			end
+		end
+		return index
+	end
 
-		for _, player in game:GetService('Players'):GetPlayers() do
-			local char = player.Character
-			if not char then continue end
-			for _, tool in char:GetChildren() do
-				if tool:IsA('Tool') then
-					for _, part in tool:GetDescendants() do
-						if part:IsA('SpecialMesh') then
-							oldTextures[part] = part.TextureId
-							part.TextureId = textureId
-						elseif part:IsA('MeshPart') then
-							oldTextures[part] = part.TextureID
-							part.TextureID = textureId
+	local function loadPack(name)
+		if loadedPacks[name] then return loadedPacks[name] end
+		local id = packIds[name]
+		if not id then return nil end
+		local suc, result = pcall(function()
+			return game:GetObjects('rbxassetid://'..id)
+		end)
+		if not suc or not result or not result[1] then
+			vape:CreateNotification('TexturePack', 'Failed to load '..name, 5, 'alert')
+			return nil
+		end
+		result[1].Parent = game:GetService('ReplicatedStorage')
+		loadedPacks[name] = result[1]
+		return result[1]
+	end
+
+	local function clearConnections()
+		for _, conn in activeConnections do
+			conn:Disconnect()
+		end
+		table.clear(activeConnections)
+	end
+
+	local function applyToVM(vmTool, modelPart)
+		if not vmTool or not modelPart then return end
+		local new = modelPart:Clone()
+		weldModel(new)
+		hideOriginal(vmTool)
+		new.Parent = vmTool
+		new.PrimaryPart.CFrame = vmTool.Handle.CFrame * CFrame.Angles(0, math.rad(90), 0)
+		local weld = Instance.new('WeldConstraint', vmTool)
+		weld.Part0 = new.PrimaryPart
+		weld.Part1 = vmTool.Handle
+		local charTool = lplr.Character and lplr.Character:FindFirstChild(vmTool.Name)
+		if charTool then
+			local charNew = modelPart:Clone()
+			weldModel(charNew)
+			hideOriginal(charTool)
+			charNew.Parent = charTool
+			charNew.PrimaryPart.CFrame = charTool.Handle.CFrame * CFrame.new(0, -0.45, 0) * CFrame.Angles(0, math.rad(90), 0)
+			local weld2 = Instance.new('WeldConstraint', charNew)
+			weld2.Part0 = charNew.PrimaryPart
+			weld2.Part1 = charTool.Handle
+		end
+	end
+
+	local function applyPack(packModel)
+		local index = getPackIndex(packModel)
+		local vm = workspace.Camera:FindFirstChild('Viewmodel')
+		if not vm then return end
+
+		for _, tool in vm:GetChildren() do
+			local modelPart = index[tool.Name]
+			if modelPart then
+				applyToVM(tool, modelPart)
+			end
+		end
+
+		local conn = vm.ChildAdded:Connect(function(tool)
+			task.wait(0.05)
+			local modelPart = index[tool.Name]
+			if modelPart then
+				applyToVM(tool, modelPart)
+			end
+		end)
+		table.insert(activeConnections, conn)
+	end
+
+	TexturePacks = vape.Categories.Render:CreateModule({
+		Name = 'TexturePack',
+		Function = function(callback)
+			if callback then
+				local pack = loadPack(PackSelect.Value)
+				if pack then
+					applyPack(pack)
+				end
+			else
+				clearConnections()
+				local vm = workspace.Camera:FindFirstChild('Viewmodel')
+				if vm then
+					for _, tool in vm:GetChildren() do
+						for _, v in tool:GetDescendants() do
+							if v:IsA('Part') or v:IsA('MeshPart') or v:IsA('UnionOperation') then
+								v.Transparency = 0
+							end
+						end
+						for _, v in tool:GetChildren() do
+							if v:IsA('Model') then
+								v:Destroy()
+							end
 						end
 					end
 				end
 			end
-		end
-
-		for _, item in store.inventory.inventory.items do
-			local tool = item.tool
-			if not tool or not tool.Parent then continue end
-			for _, part in tool:GetDescendants() do
-				if part:IsA('SpecialMesh') then
-					oldTextures[part] = part.TextureId
-					part.TextureId = textureId
-				elseif part:IsA('MeshPart') then
-					oldTextures[part] = part.TextureID
-					part.TextureID = textureId
-				end
-			end
-		end
-	end
-
-	TexturePack = vape.Categories.Render:CreateModule({
-		Name = 'TexturePack',
-		Function = function(callback)
-			if callback then
-				applyToSwords()
-				TexturePack:Clean(game:GetService('RunService').Heartbeat:Connect(function()
-					applyToSwords()
-				end))
-			else
-				restoreTextures()
-			end
 		end,
-		Tooltip = 'Apply a custom texture pack to swords'
+		Tooltip = 'Apply custom sword texture packs'
 	})
-
-	Pack = TexturePack:CreateDropdown({
+	PackSelect = TexturePacks:CreateDropdown({
 		Name = 'Pack',
 		List = {'Pack1', 'Pack2', 'Pack3', 'Pack4'},
 		Function = function()
-			if TexturePack.Enabled then
-				restoreTextures()
-				applyToSwords()
+			if TexturePacks.Enabled then
+				clearConnections()
+				local vm = workspace.Camera:FindFirstChild('Viewmodel')
+				if vm then
+					for _, tool in vm:GetChildren() do
+						for _, v in tool:GetDescendants() do
+							if v:IsA('Part') or v:IsA('MeshPart') or v:IsA('UnionOperation') then
+								v.Transparency = 0
+							end
+						end
+						for _, v in tool:GetChildren() do
+							if v:IsA('Model') then
+								v:Destroy()
+							end
+						end
+					end
+				end
+				local pack = loadPack(PackSelect.Value)
+				if pack then
+					applyPack(pack)
+				end
 			end
 		end
 	})
 end)
+
 
 run(function()
 	local RavenTP
