@@ -6077,6 +6077,126 @@ run(function()
 end)
 
 run(function()
+	local FakeLag
+	local Threshold
+	local AutoSend
+	local SendMode
+	local packets = {}
+	local holding = false
+	local oldFireServer, oldInvokeServer
+	local function interceptRemotes()
+		local mt = getrawmetatable(game)
+		local oldIndex = mt.__index
+		local oldNewIndex = mt.__newindex
+		local blockedRemotes = {}
+		oldFireServer = Instance.prototype.FireServer
+		oldInvokeServer = Instance.prototype.InvokeServer
+
+		Instance.prototype.FireServer = function(self, ...)
+			if holding and FakeLag.Enabled then
+				if not blockedRemotes[self] then
+					table.insert(packets, {self, 'Fire', {...}})
+					return
+				end
+			end
+			return oldFireServer(self, ...)
+		end
+		Instance.prototype.InvokeServer = function(self, ...)
+			if holding and FakeLag.Enabled then
+				if not blockedRemotes[self] then
+					table.insert(packets, {self, 'Invoke', {...}})
+					return
+				end
+			end
+			return oldInvokeServer(self, ...)
+		end
+	end
+	local function restoreRemotes()
+		if oldFireServer then
+			Instance.prototype.FireServer = oldFireServer
+		end
+		if oldInvokeServer then
+			Instance.prototype.InvokeServer = oldInvokeServer
+		end
+		oldFireServer = nil
+		oldInvokeServer = nil
+	end
+	local function flushPackets()
+		local toSend = table.clone(packets)
+		table.clear(packets)
+		for _, packet in toSend do
+			local remote, method, args = packet[1], packet[2], packet[3]
+			pcall(function()
+				if method == 'Fire' then
+					oldFireServer(remote, table.unpack(args))
+				else
+					oldInvokeServer(remote, table.unpack(args))
+				end
+			end)
+		end
+	end
+	local function simpleFakeLag()
+		holding = true
+		FakeLag:Clean(runService.Heartbeat:Connect(function()
+			if #packets >= Threshold.Value then
+				if SendMode.Value == 'Auto Send' and AutoSend.Enabled then
+					holding = false
+					flushPackets()
+					holding = true
+				end
+			end
+		end))
+	end
+	FakeLag = vape.Categories.Utility:CreateModule({
+		Name = 'FakeLag',
+		Function = function(callback)
+			if callback then
+				local suc = pcall(interceptRemotes)
+				if not suc then
+					vape:CreateNotification('FakeLag', 'Executor does not support remote interception', 5, 'alert')
+					FakeLag:Toggle()
+					return
+				end
+				simpleFakeLag()
+				FakeLag:Clean(function()
+					holding = false
+					flushPackets()
+					restoreRemotes()
+				end)
+			else
+				holding = false
+				flushPackets()
+				restoreRemotes()
+			end
+		end,
+		Tooltip = 'Holds your outgoing packets and releases them all at once'
+	})
+	SendMode = FakeLag:CreateDropdown({
+		Name = 'Mode',
+		List = {'Manual', 'Auto Send'},
+		Function = function(val)
+			AutoSend.Object.Visible = val == 'Auto Send'
+			Threshold.Object.Visible = val == 'Auto Send'
+		end
+	})
+	Threshold = FakeLag:CreateSlider({
+		Name = 'Packet threshold',
+		Min = 1,
+		Max = 200,
+		Default = 50,
+		Visible = false,
+		Tooltip = 'Auto sends when this many packets are queued'
+	})
+	AutoSend = FakeLag:CreateToggle({
+		Name = 'Auto Send',
+		Default = true,
+		Visible = false,
+		Darker = true
+	})
+end)
+				
+
+run(function()
 	local StaffDetector
 	local Mode
 	local Clans
