@@ -5345,7 +5345,7 @@ run(function()
 
 	local loadedPacks = {}
 	local activeConnections = {}
-	local originalTransparencies = {}
+	local originalData = {}
 
 	local function loadPack(name)
 		if loadedPacks[name] then return loadedPacks[name] end
@@ -5371,24 +5371,15 @@ run(function()
 		local meshPart = packFolder:FindFirstChild(accessory.Name)
 		if not meshPart then return end
 
-		if handle:FindFirstChild('BlackSharkTexture') then return end
+		if not originalData[handle] then
+			originalData[handle] = {
+				MeshId = handle.MeshId,
+				TextureID = handle.TextureID
+			}
+		end
 
-		handle.Transparency = 1
-
-		local clone = meshPart:Clone()
-		clone.Name = 'BlackSharkTexture'
-		clone.Anchored = false
-		clone.CanCollide = false
-		clone.CanQuery = false
-		clone.CastShadow = false
-		clone.Size = meshPart.Size
-		clone.CFrame = handle.CFrame
-		clone.Parent = handle
-
-		local weld = Instance.new('WeldConstraint')
-		weld.Part0 = handle
-		weld.Part1 = clone
-		weld.Parent = clone
+		handle.MeshId = meshPart.MeshId
+		handle.TextureID = meshPart.TextureID
 	end
 
 	local function applyPack(packFolder)
@@ -5434,32 +5425,13 @@ run(function()
 		end
 		table.clear(activeConnections)
 
-		local vm = workspace.Camera:FindFirstChild('Viewmodel')
-		if vm then
-			for _, acc in vm:GetChildren() do
-				if acc:IsA('Accessory') then
-					local handle = acc:FindFirstChild('Handle')
-					if handle then
-						handle.Transparency = 0
-						local tex = handle:FindFirstChild('BlackSharkTexture')
-						if tex then tex:Destroy() end
-					end
-				end
+		for handle, data in originalData do
+			if handle and handle.Parent then
+				handle.MeshId = data.MeshId
+				handle.TextureID = data.TextureID
 			end
 		end
-
-		if lplr.Character then
-			for _, acc in lplr.Character:GetChildren() do
-				if acc:IsA('Accessory') then
-					local handle = acc:FindFirstChild('Handle')
-					if handle then
-						handle.Transparency = 0
-						local tex = handle:FindFirstChild('BlackSharkTexture')
-						if tex then tex:Destroy() end
-					end
-				end
-			end
-		end
+		table.clear(originalData)
 	end
 
 	TexturePacks = vape.Categories.Render:CreateModule({
@@ -5491,6 +5463,7 @@ run(function()
 		end
 	})
 end)
+
 
 
 
