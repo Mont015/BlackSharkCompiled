@@ -5871,178 +5871,315 @@ run(function()
 end)
 
 run(function()
-	local Scaffold
-	local Expand
-	local Tower
-	local Downwards
-	local Diagonal
-	local LimitItem
-	local Mouse
-	local adjacent, lastpos, label = {}, Vector3.zero
-	
+	local Schematica
+	local File
+	local Mode
+	local Transparency
+	local BuildDelay
+	local AutoRotate
+	local parts, guidata = {}, {}
+	local point1, point2
+
+	local poschecklist = {}
 	for x = -3, 3, 3 do
 		for y = -3, 3, 3 do
 			for z = -3, 3, 3 do
-				local vec = Vector3.new(x, y, z)
-				if vec ~= Vector3.zero then
-					table.insert(adjacent, vec)
+				if Vector3.new(x, y, z) ~= Vector3.zero then
+					table.insert(poschecklist, Vector3.new(x, y, z))
 				end
 			end
 		end
 	end
-	
-	local function nearCorner(poscheck, pos)
-		local startpos = poscheck - Vector3.new(3, 3, 3)
-		local endpos = poscheck + Vector3.new(3, 3, 3)
-		local check = poscheck + (pos - poscheck).Unit * 100
-		return Vector3.new(math.clamp(check.X, startpos.X, endpos.X), math.clamp(check.Y, startpos.Y, endpos.Y), math.clamp(check.Z, startpos.Z, endpos.Z))
-	end
-	
-	local function blockProximity(pos)
-		local mag, returned = 60
-		local tab = getBlocksInPoints(bedwars.BlockController:getBlockPosition(pos - Vector3.new(21, 21, 21)), bedwars.BlockController:getBlockPosition(pos + Vector3.new(21, 21, 21)))
-		for _, v in tab do
-			local blockpos = nearCorner(v, pos)
-			local newmag = (pos - blockpos).Magnitude
-			if newmag < mag then
-				mag, returned = newmag, blockpos
-			end
-		end
-		table.clear(tab)
-		return returned
-	end
-	
+
 	local function checkAdjacent(pos)
-		for _, v in adjacent do
-			if getPlacedBlock(pos + v) then
-				return true
-			end
+		for _, v in poschecklist do
+			if getPlacedBlock(pos + v) then return true end
 		end
 		return false
 	end
-	
-	local function getScaffoldBlock()
-		if store.hand.toolType == 'block' then
-			return store.hand.tool.Name, store.hand.amount
-		elseif (not LimitItem.Enabled) then
-			local wool, amount = getWool()
-			if wool then
-				return wool, amount
-			else
-				for _, item in store.inventory.inventory.items do
-					if bedwars.ItemMeta[item.itemType].block then
-						return item.itemType, item.amount
+
+	local function getPlacedBlocksInPoints(s, e)
+		local list, blocks = {}, bedwars.BlockController:getStore()
+		local minX, maxX = math.min(s.X, e.X), math.max(s.X, e.X)
+		local minY, maxY = math.min(s.Y, e.Y), math.max(s.Y, e.Y)
+		local minZ, maxZ = math.min(s.Z, e.Z), math.max(s.Z, e.Z)
+		for x = minX, maxX do
+			for y = minY, maxY do
+				for z = minZ, maxZ do
+					local vec = Vector3.new(x, y, z)
+					local block = blocks:getBlockAt(vec)
+					if block and block:GetAttribute('PlacedByUserId') == lplr.UserId then
+						list[vec] = block
 					end
 				end
 			end
 		end
-	
-		return nil, 0
+		return list
 	end
-	
-	Scaffold = vape.Categories.Utility:CreateModule({
-		Name = 'Scaffold',
-		Function = function(callback)
-			if label then
-				label.Visible = callback
+
+	local function getFileName()
+		local name = File.Value or ''
+		if name == '' then name = 'schematica_save' end
+		if not name:find('%.json$') then name = name..'.json' end
+		if not name:find('/') and not name:find('\\') then
+			name = 'newvape/'..name
+		end
+		return name
+	end
+
+	local function clearMaterialDisplay()
+		for _, v in guidata do
+			pcall(function() v:Destroy() end)
+		end
+		table.clear(guidata)
+	end
+
+	local function loadMaterials()
+		clearMaterialDisplay()
+		local path = getFileName()
+		local suc, read = pcall(function()
+			return isfile(path) and httpService:JSONDecode(readfile(path))
+		end)
+
+		if not suc or not read then return end
+
+		local items = {}
+		for _, v in read do
+			items[v[2]] = (items[v[2]] or 0) + 1
+		end
+
+		local totalBlocks = 0
+		for _, v in items do totalBlocks += v end
+
+		local header = Instance.new('Frame')
+		header.Size = UDim2.new(1, 0, 0, 24)
+		header.BackgroundTransparency = 1
+		header.Parent = Schematica.Children
+		local headerText = Instance.new('TextLabel')
+		headerText.Size = UDim2.new(1, 0, 1, 0)
+		headerText.BackgroundTransparency = 1
+		headerText.Text = 'Total: '..totalBlocks..' blocks'
+		headerText.TextXAlignment = Enum.TextXAlignment.Left
+		headerText.TextColor3 = uipallet.Text
+		headerText.TextSize = 13
+		headerText.FontFace = uipallet.Font
+		headerText.Parent = header
+		table.insert(guidata, header)
+
+		for i, v in items do
+			local holder = Instance.new('Frame')
+			holder.Size = UDim2.new(1, 0, 0, 30)
+			holder.BackgroundTransparency = 1
+			holder.Parent = Schematica.Children
+			local icon = Instance.new('ImageLabel')
+			icon.Size = UDim2.fromOffset(22, 22)
+			icon.Position = UDim2.fromOffset(4, 4)
+			icon.BackgroundTransparency = 1
+			icon.Image = bedwars.getIcon({itemType = i}, true)
+			icon.Parent = holder
+			local text = Instance.new('TextLabel')
+			text.Size = UDim2.fromOffset(160, 30)
+			text.Position = UDim2.fromOffset(30, 0)
+			text.BackgroundTransparency = 1
+			text.Text = (bedwars.ItemMeta[i] and bedwars.ItemMeta[i].displayName or i)..': '..v
+			text.TextXAlignment = Enum.TextXAlignment.Left
+			text.TextColor3 = uipallet.Text
+			text.TextSize = 13
+			text.FontFace = uipallet.Font
+			text.Parent = holder
+			table.insert(guidata, holder)
+		end
+
+		table.clear(read)
+		table.clear(items)
+	end
+
+	local function save()
+		if point1 and point2 then
+			local tab = getPlacedBlocksInPoints(point1, point2)
+			local count = getTableSize(tab)
+
+			if count == 0 then
+				notif('Schematica', 'No blocks found in selection (only your own blocks are saved)', 4)
+				point1, point2 = nil, nil
+				return
 			end
-	
-			if callback then
-				repeat
-					if entitylib.isAlive then
-						local wool, amount = getScaffoldBlock()
-	
-						if Mouse.Enabled then
-							if not inputService:IsMouseButtonPressed(0) then
-								wool = nil
-							end
-						end
-	
-						if label then
-							amount = amount or 0
-							label.Text = amount..' <font color="rgb(170, 170, 170)">(Scaffold)</font>'
-							label.TextColor3 = Color3.fromHSV((amount / 128) / 2.8, 0.86, 1)
-						end
-	
-						if wool then
-							local root = entitylib.character.RootPart
-							if Tower.Enabled and inputService:IsKeyDown(Enum.KeyCode.Space) and (not inputService:GetFocusedTextBox()) then
-								root.Velocity = Vector3.new(root.Velocity.X, 38, root.Velocity.Z)
-							end
-	
-							for i = Expand.Value, 1, -1 do
-								local currentpos = roundPos(root.Position - Vector3.new(0, entitylib.character.HipHeight + (Downwards.Enabled and inputService:IsKeyDown(Enum.KeyCode.LeftShift) and 4.5 or 1.5), 0) + entitylib.character.Humanoid.MoveDirection * (i * 3))
-								if Diagonal.Enabled then
-									if math.abs(math.round(math.deg(math.atan2(-entitylib.character.Humanoid.MoveDirection.X, -entitylib.character.Humanoid.MoveDirection.Z)) / 45) * 45) % 90 == 45 then
-										local dt = (lastpos - currentpos)
-										if ((dt.X == 0 and dt.Z ~= 0) or (dt.X ~= 0 and dt.Z == 0)) and ((lastpos - root.Position) * Vector3.new(1, 0, 1)).Magnitude < 2.5 then
-											currentpos = lastpos
-										end
-									end
-								end
-	
-								local block, blockpos = getPlacedBlock(currentpos)
-								if not block then
-									blockpos = checkAdjacent(blockpos * 3) and blockpos * 3 or blockProximity(currentpos)
-									if blockpos then
-										task.spawn(bedwars.placeBlock, blockpos, wool, false)
-									end
-								end
-								lastpos = currentpos
-							end
-						end
-					end
-	
-					task.wait(0.03)
-				until not Scaffold.Enabled
+
+			local origin = point1 * 3
+			local lookCF = CFrame.lookAlong(origin, entitylib.character.RootPart.CFrame.LookVector)
+			local savetab = {}
+
+			for i, v in tab do
+				local worldPos = i * 3
+				local localPos = lookCF:PointToObjectSpace(worldPos)
+				local snapped = bedwars.BlockController:getBlockPosition(CFrame.new(localPos)) * 3
+				table.insert(savetab, {{x = snapped.X, y = snapped.Y, z = snapped.Z}, v.Name})
+			end
+
+			point1, point2 = nil, nil
+			local path = getFileName()
+			writefile(path, httpService:JSONEncode(savetab))
+			notif('Schematica', 'Saved '..count..' blocks to '..path, 5)
+			loadMaterials()
+			table.clear(tab)
+			table.clear(savetab)
+		else
+			local mouseinfo = bedwars.BlockBreaker.clientManager:getBlockSelector():getMouseInfo(0)
+			if mouseinfo and mouseinfo.target then
+				if not point1 then
+					point1 = mouseinfo.target.blockRef.blockPosition
+					notif('Schematica', 'Position 1 set — toggle again to set position 2', 3)
+				else
+					point2 = mouseinfo.target.blockRef.blockPosition
+					notif('Schematica', 'Position 2 set — toggle again to save', 3)
+				end
 			else
-				Label = nil
+				notif('Schematica', 'Look at a block to set position', 3)
+			end
+		end
+	end
+
+	local function load(read)
+		local mouseinfo = bedwars.BlockBreaker.clientManager:getBlockSelector():getMouseInfo(0)
+		if not mouseinfo or not mouseinfo.target then
+			notif('Schematica', 'Look at a block to place the schematic', 3)
+			return
+		end
+
+		local rotationAngle = AutoRotate.Enabled
+			and math.round(math.deg(math.atan2(-entitylib.character.RootPart.CFrame.LookVector.X, -entitylib.character.RootPart.CFrame.LookVector.Z)) / 45) * 45
+			or 0
+
+		local position = CFrame.new(mouseinfo.placementPosition * 3) * CFrame.Angles(0, math.rad(rotationAngle), 0)
+
+		for _, v in read do
+			local blockpos = bedwars.BlockController:getBlockPosition((position * CFrame.new(v[1].x, v[1].y, v[1].z)).p) * 3
+			if parts[blockpos] then continue end
+			local blockType = v[2]:find('wool') and (getWool() or v[2]) or v[2]
+			local handler = bedwars.BlockController:getHandlerRegistry():getHandler(blockType)
+			if handler then
+				local part = handler:place(blockpos / 3, 0)
+				part.Transparency = Transparency.Value
+				part.CanCollide = false
+				part.Anchored = true
+				part.Parent = workspace
+				parts[blockpos] = part
+			end
+		end
+		table.clear(read)
+
+		local placed, total = 0, getTableSize(parts)
+		notif('Schematica', 'Building '..total..' blocks...', 3)
+
+		repeat
+			if entitylib.isAlive then
+				local localPosition = entitylib.character.RootPart.Position
+				for i, v in parts do
+					if (i - localPosition).Magnitude < 60 and checkAdjacent(i) then
+						if not Schematica.Enabled then break end
+						local blockType = v.Name:find('wool') and (getWool() or v.Name) or v.Name
+						if not getItem(blockType) then continue end
+						bedwars.placeBlock(i, blockType, false)
+						task.delay(0.15, function()
+							local block = getPlacedBlock(i)
+							if block then
+								placed += 1
+								v:Destroy()
+								parts[i] = nil
+							end
+						end)
+					end
+				end
+			end
+			task.wait(BuildDelay.Value)
+		until getTableSize(parts) <= 0 or not Schematica.Enabled
+
+		if getTableSize(parts) <= 0 and Schematica.Enabled then
+			notif('Schematica', 'Finished! Placed '..placed..'/'..total..' blocks', 5)
+			Schematica:Toggle()
+		end
+	end
+
+	Schematica = vape.Categories.World:CreateModule({
+		Name = 'Schematica',
+		Function = function(callback)
+			if callback then
+				local path = getFileName()
+
+				if Mode.Value == 'Save' then
+					save()
+					if not point1 and not point2 then
+						Schematica:Toggle()
+					elseif point1 and point2 then
+						Schematica:Toggle()
+					end
+					return
+				end
+
+				local suc, read = pcall(function()
+					return isfile(path) and httpService:JSONDecode(readfile(path))
+				end)
+
+				if not suc or not read or #read == 0 then
+					notif('Schematica', 'File not found or empty: '..path, 4)
+					Schematica:Toggle()
+					return
+				end
+
+				load(read)
+			else
+				for _, v in parts do
+					pcall(function() v:Destroy() end)
+				end
+				table.clear(parts)
+				point1, point2 = nil, nil
 			end
 		end,
-		Tooltip = 'Helps you make bridges/scaffold walk.'
+		Tooltip = 'Save and load block placements'
 	})
-	Expand = Scaffold:CreateSlider({
-		Name = 'Expand',
-		Min = 1,
-		Max = 6
+
+	File = Schematica:CreateTextBox({
+		Name = 'File',
+		Default = 'myschematic',
+		Function = function()
+			loadMaterials()
+			point1, point2 = nil, nil
+		end
 	})
-	Tower = Scaffold:CreateToggle({
-		Name = 'Tower',
-		Default = true
+	Mode = Schematica:CreateDropdown({
+		Name = 'Mode',
+		List = {'Load', 'Save'},
+		Function = function()
+			point1, point2 = nil, nil
+		end
 	})
-	Downwards = Scaffold:CreateToggle({
-		Name = 'Downwards',
-		Default = true
-	})
-	Diagonal = Scaffold:CreateToggle({
-		Name = 'Diagonal',
-		Default = true
-	})
-	LimitItem = Scaffold:CreateToggle({Name = 'Limit to items'})
-	Mouse = Scaffold:CreateToggle({Name = 'Require mouse down'})
-	Count = Scaffold:CreateToggle({
-		Name = 'Block Count',
-		Function = function(callback)
-			if callback then
-				label = Instance.new('TextLabel')
-				label.Size = UDim2.fromOffset(100, 20)
-				label.Position = UDim2.new(0.5, 6, 0.5, 60)
-				label.BackgroundTransparency = 1
-				label.AnchorPoint = Vector2.new(0.5, 0)
-				label.Text = '0'
-				label.TextColor3 = Color3.new(0, 1, 0)
-				label.TextSize = 18
-				label.RichText = true
-				label.Font = Enum.Font.Arial
-				label.Visible = Scaffold.Enabled
-				label.Parent = vape.gui
-			else
-				label:Destroy()
-				label = nil
+	Transparency = Schematica:CreateSlider({
+		Name = 'Transparency',
+		Min = 0,
+		Max = 1,
+		Default = 0.7,
+		Decimal = 10,
+		Function = function(val)
+			for _, v in parts do
+				v.Transparency = val
 			end
 		end
 	})
+	BuildDelay = Schematica:CreateSlider({
+		Name = 'Build delay',
+		Min = 0,
+		Max = 0.5,
+		Default = 0.05,
+		Decimal = 100,
+		Suffix = 's'
+	})
+	AutoRotate = Schematica:CreateToggle({
+		Name = 'Auto rotate',
+		Default = true,
+		Tooltip = 'Rotates the build to match where you are facing'
+	})
 end)
+
 
 run(function()
 	local ShopTierBypass
