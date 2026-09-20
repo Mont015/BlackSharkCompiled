@@ -5372,8 +5372,9 @@ run(function()
 			return nil
 		end
 		result[1].Parent = game:GetService('ReplicatedStorage')
-		loadedPacks[name] = result[1]
-		return result[1]
+local folder = result[1]:FindFirstChildOfClass('Folder')
+loadedPacks[name] = folder or result[1]
+return folder or result[1]
 	end
 	local function hideOriginal(tool)
 		for _, v in tool:GetDescendants() do
