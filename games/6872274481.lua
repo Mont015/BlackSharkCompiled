@@ -5345,61 +5345,24 @@ run(function()
 
 	local loadedPacks = {}
 	local activeConnections = {}
+	local originalTransparencies = {}
 
-	local function weldModel(model)
-		for _, v in model:GetDescendants() do
-			if v:IsA('Part') or v:IsA('MeshPart') or v:IsA('UnionOperation') then
-				local weld = Instance.new('WeldConstraint', model)
-				weld.Part0 = model.PrimaryPart
-				weld.Part1 = v
-				v.Anchored = false
-				v.CanCollide = false
-			end
-		end
-	end
-
-	local function hideOriginal(tool)
-		for _, v in tool:GetDescendants() do
-			if v:IsA('Part') or v:IsA('MeshPart') or v:IsA('UnionOperation') then
-				v.Transparency = 1
-			end
-		end
-	end
-
-	local function getPackIndex(packModel)
-		local index = {}
-		local swords = {'wood', 'stone', 'iron', 'diamond', 'emerald', 'rageblade'}
-		local tools = {'woodaxe', 'stoneaxe', 'ironaxe', 'diamondaxe', 'woodpick', 'stonepick', 'ironpick', 'diamondpick'}
-		local nameMap = {
-			wood = 'wood_sword',
-			stone = 'stone_sword',
-			iron = 'iron_sword',
-			diamond = 'diamond_sword',
-			emerald = 'emerald_sword',
-			rageblade = 'rageblade',
-			woodaxe = 'wood_axe',
-			stoneaxe = 'stone_axe',
-			ironaxe = 'iron_axe',
-			diamondaxe = 'diamond_axe',
-			woodpick = 'wood_pickaxe',
-			stonepick = 'stone_pickaxe',
-			ironpick = 'iron_pickaxe',
-			diamondpick = 'diamond_pickaxe'
-		}
-		for _, key in swords do
-			local part = packModel:FindFirstChild(key)
-			if part then
-				index[nameMap[key]] = part
-			end
-		end
-		for _, key in tools do
-			local part = packModel:FindFirstChild(key)
-			if part then
-				index[nameMap[key]] = part
-			end
-		end
-		return index
-	end
+	local nameMap = {
+		wood_sword = 'wood',
+		stone_sword = 'stone',
+		iron_sword = 'iron',
+		diamond_sword = 'diamond',
+		emerald_sword = 'emerald',
+		rageblade = 'rageblade',
+		wood_axe = 'woodaxe',
+		stone_axe = 'stoneaxe',
+		iron_axe = 'ironaxe',
+		diamond_axe = 'diamondaxe',
+		wood_pickaxe = 'woodpick',
+		stone_pickaxe = 'stonepick',
+		iron_pickaxe = 'ironpick',
+		diamond_pickaxe = 'diamondpick'
+	}
 
 	local function loadPack(name)
 		if loadedPacks[name] then return loadedPacks[name] end
@@ -5417,58 +5380,102 @@ run(function()
 		return result[1]
 	end
 
-	local function clearConnections()
-		for _, conn in activeConnections do
-			conn:Disconnect()
-		end
-		table.clear(activeConnections)
-	end
-
-	local function applyToVM(vmTool, modelPart)
-		if not vmTool or not modelPart then return end
-		local new = modelPart:Clone()
-		weldModel(new)
-		hideOriginal(vmTool)
-		new.Parent = vmTool
-		new.PrimaryPart.CFrame = vmTool.Handle.CFrame * CFrame.Angles(0, math.rad(90), 0)
-		local weld = Instance.new('WeldConstraint', vmTool)
-		weld.Part0 = new.PrimaryPart
-		weld.Part1 = vmTool.Handle
-		local charTool = lplr.Character and lplr.Character:FindFirstChild(vmTool.Name)
-		if charTool then
-			local charNew = modelPart:Clone()
-			weldModel(charNew)
-			hideOriginal(charTool)
-			charNew.Parent = charTool
-			charNew.PrimaryPart.CFrame = charTool.Handle.CFrame * CFrame.new(0, -0.45, 0) * CFrame.Angles(0, math.rad(90), 0)
-			local weld2 = Instance.new('WeldConstraint', charNew)
-			weld2.Part0 = charNew.PrimaryPart
-			weld2.Part1 = charTool.Handle
+	local function hideOriginal(tool)
+		for _, v in tool:GetDescendants() do
+			if v:IsA('BasePart') then
+				originalTransparencies[v] = v.Transparency
+				v.Transparency = 1
+			end
 		end
 	end
 
-	local function applyPack(packModel)
-		local index = getPackIndex(packModel)
+	local function restoreOriginal(tool)
+		for _, v in tool:GetDescendants() do
+			if v:IsA('BasePart') and originalTransparencies[v] ~= nil then
+				v.Transparency = originalTransparencies[v]
+				originalTransparencies[v] = nil
+			end
+		end
+		for _, v in tool:GetChildren() do
+			if v.Name == 'BlackSharkTexture' then
+				v:Destroy()
+			end
+		end
+	end
+
+	local function applyToTool(tool, packFolder)
+		local packKey = nameMap[tool.Name]
+		if not packKey then return end
+		local meshPart = packFolder:FindFirstChild(packKey)
+		if not meshPart then return end
+		local handle = tool:FindFirstChild('Handle')
+		if not handle then return end
+
+		hideOriginal(tool)
+
+		local clone = meshPart:Clone()
+		clone.Name = 'BlackSharkTexture'
+		clone.Anchored = false
+		clone.CanCollide = false
+		clone.CFrame = handle.CFrame
+		clone.Parent = tool
+
+		local weld = Instance.new('WeldConstraint')
+		weld.Part0 = clone
+		weld.Part1 = handle
+		weld.Parent = clone
+	end
+
+	local function applyPack(packFolder)
 		local vm = workspace.Camera:FindFirstChild('Viewmodel')
 		if not vm then return end
 
 		for _, tool in vm:GetChildren() do
-			local modelPart = index[tool.Name]
-			if modelPart then
-				applyToVM(tool, modelPart)
+			if tool:IsA('Model') or tool:IsA('Tool') then
+				applyToTool(tool, packFolder)
 			end
 		end
 
 		local conn = vm.ChildAdded:Connect(function(tool)
 			task.wait(0.05)
-			local modelPart = index[tool.Name]
-			if modelPart then
-				applyToVM(tool, modelPart)
+			if tool:IsA('Model') or tool:IsA('Tool') then
+				applyToTool(tool, packFolder)
 			end
 		end)
 		table.insert(activeConnections, conn)
+
+		local charConn = lplr.CharacterAdded:Connect(function(char)
+			task.wait(0.5)
+			for _, tool in char:GetChildren() do
+				if tool:IsA('Tool') then
+					applyToTool(tool, packFolder)
+				end
+			end
+		end)
+		table.insert(activeConnections, charConn)
 	end
 
+	local function clearAll()
+		for _, conn in activeConnections do
+			conn:Disconnect()
+		end
+		table.clear(activeConnections)
+
+		local vm = workspace.Camera:FindFirstChild('Viewmodel')
+		if vm then
+			for _, tool in vm:GetChildren() do
+				restoreOriginal(tool)
+			end
+		end
+
+		if lplr.Character then
+			for _, tool in lplr.Character:GetChildren() do
+				if tool:IsA('Tool') then
+					restoreOriginal(tool)
+				end
+			end
+		end
+	end
 	TexturePacks = vape.Categories.Render:CreateModule({
 		Name = 'TexturePack',
 		Function = function(callback)
@@ -5478,22 +5485,7 @@ run(function()
 					applyPack(pack)
 				end
 			else
-				clearConnections()
-				local vm = workspace.Camera:FindFirstChild('Viewmodel')
-				if vm then
-					for _, tool in vm:GetChildren() do
-						for _, v in tool:GetDescendants() do
-							if v:IsA('Part') or v:IsA('MeshPart') or v:IsA('UnionOperation') then
-								v.Transparency = 0
-							end
-						end
-						for _, v in tool:GetChildren() do
-							if v:IsA('Model') then
-								v:Destroy()
-							end
-						end
-					end
-				end
+				clearAll()
 			end
 		end,
 		Tooltip = 'Apply custom sword texture packs'
@@ -5503,22 +5495,7 @@ run(function()
 		List = {'Pack1', 'Pack2', 'Pack3', 'Pack4'},
 		Function = function()
 			if TexturePacks.Enabled then
-				clearConnections()
-				local vm = workspace.Camera:FindFirstChild('Viewmodel')
-				if vm then
-					for _, tool in vm:GetChildren() do
-						for _, v in tool:GetDescendants() do
-							if v:IsA('Part') or v:IsA('MeshPart') or v:IsA('UnionOperation') then
-								v.Transparency = 0
-							end
-						end
-						for _, v in tool:GetChildren() do
-							if v:IsA('Model') then
-								v:Destroy()
-							end
-						end
-					end
-				end
+				clearAll()
 				local pack = loadPack(PackSelect.Value)
 				if pack then
 					applyPack(pack)
