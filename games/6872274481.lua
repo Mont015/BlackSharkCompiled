@@ -5333,6 +5333,114 @@ run(function()
 end)
 
 run(function()
+	local TexturePack
+	local Pack
+	local oldTextures = {}
+
+	local packs = {
+		Pack1 = 'rbxassetid://129327270849921',
+		Pack2 = 'rbxassetid://125849770306191',
+		Pack3 = 'rbxassetid://131717105043734',
+		Pack4 = 'rbxassetid://96936645750128'
+	}
+
+	local function applyTexture(textureId)
+		oldTextures = {}
+		for _, player in game:GetService('Players'):GetPlayers() do
+			local char = player.Character
+			if not char then continue end
+			for _, part in char:GetDescendants() do
+				if part:IsA('SpecialMesh') or part:IsA('MeshPart') then
+					oldTextures[part] = part.TextureID or part.TextureId
+					if part:IsA('SpecialMesh') then
+						part.TextureId = textureId
+					else
+						part.TextureID = textureId
+					end
+				end
+			end
+		end
+	end
+
+	local function restoreTextures()
+		for part, texture in oldTextures do
+			if part and part.Parent then
+				if part:IsA('SpecialMesh') then
+					part.TextureId = texture
+				else
+					part.TextureID = texture
+				end
+			end
+		end
+		table.clear(oldTextures)
+	end
+
+	local function applyToSwords()
+		if not TexturePack.Enabled then return end
+		local textureId = packs[Pack.Value]
+		if not textureId then return end
+
+		for _, player in game:GetService('Players'):GetPlayers() do
+			local char = player.Character
+			if not char then continue end
+			for _, tool in char:GetChildren() do
+				if tool:IsA('Tool') then
+					for _, part in tool:GetDescendants() do
+						if part:IsA('SpecialMesh') then
+							oldTextures[part] = part.TextureId
+							part.TextureId = textureId
+						elseif part:IsA('MeshPart') then
+							oldTextures[part] = part.TextureID
+							part.TextureID = textureId
+						end
+					end
+				end
+			end
+		end
+
+		for _, item in store.inventory.inventory.items do
+			local tool = item.tool
+			if not tool or not tool.Parent then continue end
+			for _, part in tool:GetDescendants() do
+				if part:IsA('SpecialMesh') then
+					oldTextures[part] = part.TextureId
+					part.TextureId = textureId
+				elseif part:IsA('MeshPart') then
+					oldTextures[part] = part.TextureID
+					part.TextureID = textureId
+				end
+			end
+		end
+	end
+
+	TexturePack = vape.Categories.Render:CreateModule({
+		Name = 'TexturePack',
+		Function = function(callback)
+			if callback then
+				applyToSwords()
+				TexturePack:Clean(game:GetService('RunService').Heartbeat:Connect(function()
+					applyToSwords()
+				end))
+			else
+				restoreTextures()
+			end
+		end,
+		Tooltip = 'Apply a custom texture pack to swords'
+	})
+
+	Pack = TexturePack:CreateDropdown({
+		Name = 'Pack',
+		List = {'Pack1', 'Pack2', 'Pack3', 'Pack4'},
+		Function = function()
+			if TexturePack.Enabled then
+				restoreTextures()
+				applyToSwords()
+			end
+		end
+	})
+end)
+
+run(function()
 	local RavenTP
 	
 	RavenTP = vape.Categories.Utility:CreateModule({
