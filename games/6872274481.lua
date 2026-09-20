@@ -4132,10 +4132,10 @@ run(function()
 
 			local screenGui = Instance.new('ScreenGui')
 			screenGui.Name = 'ESPPreview'
-			screenGui.DisplayOrder = 998
+			screenGui.DisplayOrder = 10000
 			screenGui.IgnoreGuiInset = true
 			screenGui.ResetOnSpawn = false
-			screenGui.Parent = game:GetService('Players').LocalPlayer:WaitForChild('PlayerGui')
+			screenGui.Parent = (gethui and gethui()) or game:GetService('Players').LocalPlayer:WaitForChild('PlayerGui')
 			ESPPreview:Clean(screenGui)
 
 			local bg = Instance.new('Frame')
