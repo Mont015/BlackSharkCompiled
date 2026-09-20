@@ -2512,11 +2512,12 @@ run(function()
 						end
 					end
 
-					updateVisuals(targets)
-					if Face.Enabled and primary and primary.RootPart and primary.RootPart.Parent and root and root.Parent then
-						local position = primary.RootPart.Position
-						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(position.X, root.Position.Y + 0.001, position.Z))
-					end
+					task.wait(1 / math.max(UpdateRate.Value, 1))
+
+if Face.Enabled and primary and primary.RootPart and primary.RootPart.Parent and root and root.Parent then
+    local position = primary.RootPart.Position
+    root.CFrame = CFrame.lookAt(root.Position, Vector3.new(position.X, root.Position.Y + 0.001, position.Z))
+end
 
 					task.wait(1 / math.max(UpdateRate.Value, 1))
 				until not Killaura.Enabled
