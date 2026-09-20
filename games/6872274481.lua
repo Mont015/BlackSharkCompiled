@@ -2744,9 +2744,11 @@ run(function()
 			AnimationTween.Object.Visible = callback
 			AnimationSpeed.Object.Visible = callback
 			if Killaura.Enabled then
-				Killaura:Toggle()
-				Killaura:Toggle()
-			end
+                armC0 = nil
+                Killaura:Toggle()
+                task.wait(0.1)
+                Killaura:Toggle()
+            end
 		end
 	})
 	local animnames = {}
