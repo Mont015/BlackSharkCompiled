@@ -1996,6 +1996,251 @@ run(function()
 		Tooltip = 'Predicts enemy movement direction and dodges perpendicular to it. Also re-dodges if the enemy chases.'
 	})
 end)
+														
+run(function()
+	local HackerDetector
+	local DetectSpeed
+	local DetectFly
+	local DetectKA
+	local DetectReach
+	local DetectVelocity
+	local DetectAutoClicker
+
+	local flagged = {}
+	local playerData = {}
+	local NORMAL_SPEED = 28
+	local NORMAL_JUMP_TIME = 3
+	local NORMAL_REACH = 16
+	local MIN_KNOCKBACK = 8
+
+	local function notify(plr, detection)
+		local key = plr.Name..detection
+		if flagged[key] and tick() - flagged[key] < 30 then return end
+		flagged[key] = tick()
+		vape:CreateNotification('HackerDetector', plr.Name..' — '..detection, 8, 'alert')
+	end
+
+	local function getData(plr)
+		if not playerData[plr] then
+			playerData[plr] = {
+				speedFlags = 0,
+				flyFlags = 0,
+				airTime = 0,
+				lastGrounded = tick(),
+				lastJump = tick(),
+				cpsHistory = {},
+				lastSwing = tick(),
+				lastHitOnMe = tick(),
+				velocityFlags = 0,
+				reachFlags = 0,
+				kaFlags = 0,
+			}
+		end
+		return playerData[plr]
+	end
+
+	local function getHorizontalSpeed(rootPart)
+		local vel = rootPart.AssemblyLinearVelocity * Vector3.new(1, 0, 1)
+		return vel.Magnitude
+	end
+
+	local function isOnGround(character)
+		local hum = character:FindFirstChildOfClass('Humanoid')
+		return hum and hum.FloorMaterial ~= Enum.Material.Air
+	end
+
+	local function hasBalloons(character)
+		return (character:GetAttribute('InflatedBalloons') or 0) > 0
+	end
+
+	local function hasSpeedKit(plr)
+		local kit = plr:GetAttribute('PlayingAsKit') or ''
+		return kit == 'dasher' or kit == 'wind_walker' or kit == 'jade'
+	end
+
+	HackerDetector = vape.Categories.Utility:CreateModule({
+		Name = 'HackerDetector',
+		Function = function(callback)
+			if not callback then
+				table.clear(flagged)
+				table.clear(playerData)
+				return
+			end
+
+			HackerDetector:Clean(runService.Heartbeat:Connect(function()
+				for _, ent in entitylib.List do
+					if not ent.Player or not ent.Targetable then continue end
+					local plr = ent.Player
+					local char = ent.Character
+					local root = ent.RootPart
+					if not char or not root or not root.Parent then continue end
+
+					local data = getData(plr)
+					local now = tick()
+
+					if DetectSpeed.Enabled and not hasSpeedKit(plr) then
+						local speed = getHorizontalSpeed(root)
+						if speed > NORMAL_SPEED * 1.4 then
+							data.speedFlags += 1
+							if data.speedFlags >= 5 then
+								notify(plr, 'Speed ['..math.floor(speed)..' studs/s]')
+								data.speedFlags = 0
+							end
+						else
+							data.speedFlags = math.max(data.speedFlags - 1, 0)
+						end
+					end
+
+					if DetectFly.Enabled and not hasBalloons(char) then
+						local grounded = isOnGround(char)
+						if grounded then
+							data.lastGrounded = now
+							data.flyFlags = 0
+						else
+							local airTime = now - data.lastGrounded
+							if airTime > NORMAL_JUMP_TIME then
+								local vel = root.AssemblyLinearVelocity
+								if math.abs(vel.Y) < 5 and vel.Magnitude > 5 then
+									data.flyFlags += 1
+									if data.flyFlags >= 8 then
+										notify(plr, 'Fly ['..(math.floor(airTime * 10) / 10)..'s airtime]')
+										data.flyFlags = 0
+										data.lastGrounded = now
+									end
+								end
+							end
+						end
+					end
+				end
+			end))
+
+			HackerDetector:Clean(vapeEvents.EntityDamageEvent.Event:Connect(function(damageTable)
+				if damageTable.entityInstance ~= lplr.Character then return end
+				if not damageTable.fromEntity or damageTable.fromEntity == lplr.Character then return end
+
+				local attackerPlr = playersService:GetPlayerFromCharacter(damageTable.fromEntity)
+				if not attackerPlr then return end
+
+				local data = getData(attackerPlr)
+				local now = tick()
+				local attackerRoot = damageTable.fromEntity:FindFirstChild('HumanoidRootPart') or damageTable.fromEntity.PrimaryPart
+				local myRoot = entitylib.character and entitylib.character.RootPart
+				if not attackerRoot or not myRoot then return end
+
+				if DetectReach.Enabled then
+					local dist = (attackerRoot.Position - myRoot.Position).Magnitude
+					if dist > NORMAL_REACH then
+						data.reachFlags += 1
+						if data.reachFlags >= 3 then
+							notify(attackerPlr, 'Reach ['..math.floor(dist)..' studs]')
+							data.reachFlags = 0
+						end
+					else
+						data.reachFlags = math.max(data.reachFlags - 1, 0)
+					end
+				end
+
+				if DetectKA.Enabled then
+					local myFacing = myRoot.CFrame.LookVector * Vector3.new(1, 0, 1)
+					local toAttacker = (attackerRoot.Position - myRoot.Position) * Vector3.new(1, 0, 1)
+					if toAttacker.Magnitude > 0 then
+						local dot = myFacing:Dot(toAttacker.Unit)
+						if dot < -0.5 then
+							data.kaFlags += 1
+							if data.kaFlags >= 3 then
+								notify(attackerPlr, 'KillAura [hitting from behind]')
+								data.kaFlags = 0
+							end
+						else
+							data.kaFlags = math.max(data.kaFlags - 1, 0)
+						end
+					end
+				end
+
+				if DetectAutoClicker.Enabled then
+					local timeSinceLast = now - data.lastHitOnMe
+					data.lastHitOnMe = now
+					table.insert(data.cpsHistory, timeSinceLast)
+					if #data.cpsHistory > 10 then
+						table.remove(data.cpsHistory, 1)
+					end
+					if #data.cpsHistory >= 8 then
+						local avg = 0
+						for _, v in data.cpsHistory do avg += v end
+						avg = avg / #data.cpsHistory
+						local cps = math.floor(1 / avg)
+						local variance = 0
+						for _, v in data.cpsHistory do
+							variance += math.abs(v - avg)
+						end
+						variance = variance / #data.cpsHistory
+						if cps > 14 and variance < 0.01 then
+							notify(attackerPlr, 'AutoClicker ['..cps..' CPS, robotic timing]')
+							table.clear(data.cpsHistory)
+						end
+					end
+				end
+			end))
+
+			HackerDetector:Clean(vapeEvents.EntityDamageEvent.Event:Connect(function(damageTable)
+				if not DetectVelocity.Enabled then return end
+				local attacked = playersService:GetPlayerFromCharacter(damageTable.entityInstance)
+				if not attacked or attacked == lplr then return end
+				if damageTable.fromEntity ~= lplr.Character then return end
+
+				local data = getData(attacked)
+				local root = damageTable.entityInstance:FindFirstChild('HumanoidRootPart')
+				if not root then return end
+
+				task.delay(0.15, function()
+					if not root.Parent then return end
+					local speed = getHorizontalSpeed(root)
+					if speed < MIN_KNOCKBACK then
+						data.velocityFlags += 1
+						if data.velocityFlags >= 3 then
+							notify(attacked, 'Velocity/AntiKB [took no knockback]')
+							data.velocityFlags = 0
+						end
+					else
+						data.velocityFlags = math.max(data.velocityFlags - 1, 0)
+					end
+				end)
+			end))
+
+			HackerDetector:Clean(entitylib.Events.EntityRemoving:Connect(function(ent)
+				if ent.Player then
+					playerData[ent.Player] = nil
+				end
+			end))
+		end,
+		Tooltip = 'Detects players using hacks and notifies you'
+	})
+
+	DetectSpeed = HackerDetector:CreateToggle({
+		Name = 'Speed',
+		Default = true
+	})
+	DetectFly = HackerDetector:CreateToggle({
+		Name = 'Fly',
+		Default = true
+	})
+	DetectKA = HackerDetector:CreateToggle({
+		Name = 'KillAura',
+		Default = true
+	})
+	DetectReach = HackerDetector:CreateToggle({
+		Name = 'Reach',
+		Default = true
+	})
+	DetectVelocity = HackerDetector:CreateToggle({
+		Name = 'Velocity',
+		Default = true
+	})
+	DetectAutoClicker = HackerDetector:CreateToggle({
+		Name = 'AutoClicker',
+		Default = true
+	})
+end)
 
 
 run(function()
