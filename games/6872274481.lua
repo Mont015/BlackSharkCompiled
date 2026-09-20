@@ -5335,18 +5335,15 @@ end)
 run(function()
 	local TexturePacks
 	local PackSelect
-
 	local packIds = {
 		Pack1 = 85636882121599,
 		Pack2 = 93825538413084,
 		Pack3 = 104066331647966,
 		Pack4 = 79748050012155
 	}
-
 	local loadedPacks = {}
 	local activeConnections = {}
 	local originalTransparencies = {}
-
 	local nameMap = {
 		wood_sword = 'wood',
 		stone_sword = 'stone',
@@ -5363,7 +5360,6 @@ run(function()
 		iron_pickaxe = 'ironpick',
 		diamond_pickaxe = 'diamondpick'
 	}
-
 	local function loadPack(name)
 		if loadedPacks[name] then return loadedPacks[name] end
 		local id = packIds[name]
@@ -5379,16 +5375,14 @@ run(function()
 		loadedPacks[name] = result[1]
 		return result[1]
 	end
-
 	local function hideOriginal(tool)
 		for _, v in tool:GetDescendants() do
-			if v:IsA('BasePart') then
+			if v:IsA('BasePart') and v.Name ~= 'BlackSharkTexture' then
 				originalTransparencies[v] = v.Transparency
 				v.Transparency = 1
 			end
 		end
 	end
-
 	local function restoreOriginal(tool)
 		for _, v in tool:GetDescendants() do
 			if v:IsA('BasePart') and originalTransparencies[v] ~= nil then
@@ -5402,7 +5396,6 @@ run(function()
 			end
 		end
 	end
-
 	local function applyToTool(tool, packFolder)
 		local packKey = nameMap[tool.Name]
 		if not packKey then return end
@@ -5410,32 +5403,34 @@ run(function()
 		if not meshPart then return end
 		local handle = tool:FindFirstChild('Handle')
 		if not handle then return end
-
+		for _, v in tool:GetChildren() do
+			if v.Name == 'BlackSharkTexture' then
+				v:Destroy()
+			end
+		end
 		hideOriginal(tool)
-
 		local clone = meshPart:Clone()
 		clone.Name = 'BlackSharkTexture'
 		clone.Anchored = false
 		clone.CanCollide = false
+		clone.CanQuery = false
+		clone.CastShadow = false
+		clone.Size = handle.Size
 		clone.CFrame = handle.CFrame
 		clone.Parent = tool
-
 		local weld = Instance.new('WeldConstraint')
 		weld.Part0 = clone
 		weld.Part1 = handle
 		weld.Parent = clone
 	end
-
 	local function applyPack(packFolder)
 		local vm = workspace.Camera:FindFirstChild('Viewmodel')
 		if not vm then return end
-
 		for _, tool in vm:GetChildren() do
 			if tool:IsA('Model') or tool:IsA('Tool') then
 				applyToTool(tool, packFolder)
 			end
 		end
-
 		local conn = vm.ChildAdded:Connect(function(tool)
 			task.wait(0.05)
 			if tool:IsA('Model') or tool:IsA('Tool') then
@@ -5443,7 +5438,6 @@ run(function()
 			end
 		end)
 		table.insert(activeConnections, conn)
-
 		local charConn = lplr.CharacterAdded:Connect(function(char)
 			task.wait(0.5)
 			for _, tool in char:GetChildren() do
@@ -5454,20 +5448,17 @@ run(function()
 		end)
 		table.insert(activeConnections, charConn)
 	end
-
 	local function clearAll()
 		for _, conn in activeConnections do
 			conn:Disconnect()
 		end
 		table.clear(activeConnections)
-
 		local vm = workspace.Camera:FindFirstChild('Viewmodel')
 		if vm then
 			for _, tool in vm:GetChildren() do
 				restoreOriginal(tool)
 			end
 		end
-
 		if lplr.Character then
 			for _, tool in lplr.Character:GetChildren() do
 				if tool:IsA('Tool') then
@@ -5475,6 +5466,7 @@ run(function()
 				end
 			end
 		end
+		table.clear(originalTransparencies)
 	end
 	TexturePacks = vape.Categories.Render:CreateModule({
 		Name = 'TexturePack',
@@ -5504,6 +5496,7 @@ run(function()
 		end
 	})
 end)
+
 
 
 run(function()
