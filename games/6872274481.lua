@@ -4125,6 +4125,262 @@ run(function()
 end)
 
 run(function()
+	local ESPPreview = vape.Categories.Render:CreateModule({
+		Name = 'ESP Preview',
+		Function = function(callback)
+			if not callback then return end
+
+			local screenGui = Instance.new('ScreenGui')
+			screenGui.Name = 'ESPPreview'
+			screenGui.DisplayOrder = 998
+			screenGui.IgnoreGuiInset = true
+			screenGui.ResetOnSpawn = false
+			pcall(function() screenGui.Parent = game:GetService('CoreGui') end)
+			if not screenGui.Parent then
+				screenGui.Parent = game:GetService('Players').LocalPlayer:WaitForChild('PlayerGui')
+			end
+			ESPPreview:Clean(screenGui)
+
+			local bg = Instance.new('Frame')
+			bg.Size = UDim2.fromOffset(260, 240)
+			bg.Position = UDim2.new(0.5, -130, 0.5, -120)
+			bg.BackgroundColor3 = Color3.fromRGB(14, 13, 14)
+			bg.BorderSizePixel = 0
+			bg.ZIndex = 10
+			bg.Parent = screenGui
+			local bgCorner = Instance.new('UICorner')
+			bgCorner.CornerRadius = UDim.new(0, 5)
+			bgCorner.Parent = bg
+			local bgStroke = Instance.new('UIStroke')
+			bgStroke.Color = Color3.fromRGB(85, 85, 85)
+			bgStroke.Transparency = 0.8
+			bgStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			bgStroke.Parent = bg
+
+			local headerTitle = Instance.new('TextLabel')
+			headerTitle.Size = UDim2.new(1, -40, 0, 41)
+			headerTitle.BackgroundTransparency = 1
+			headerTitle.Text = 'ESP Preview'
+			headerTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+			headerTitle.Font = Enum.Font.Arial
+			headerTitle.TextSize = 13
+			headerTitle.TextXAlignment = Enum.TextXAlignment.Left
+			headerTitle.Position = UDim2.fromOffset(12, 0)
+			headerTitle.ZIndex = 11
+			headerTitle.Parent = bg
+
+			local divider = Instance.new('Frame')
+			divider.Size = UDim2.new(1, 0, 0, 1)
+			divider.Position = UDim2.fromOffset(0, 41)
+			divider.BackgroundColor3 = Color3.new(1,1,1)
+			divider.BackgroundTransparency = 0.928
+			divider.BorderSizePixel = 0
+			divider.ZIndex = 11
+			divider.Parent = bg
+
+			local closeBtn = Instance.new('TextButton')
+			closeBtn.Size = UDim2.fromOffset(24, 24)
+			closeBtn.Position = UDim2.new(1, -35, 0, 9)
+			closeBtn.BackgroundTransparency = 1
+			closeBtn.Text = ''
+			closeBtn.ZIndex = 12
+			closeBtn.Parent = bg
+			local closeImg = Instance.new('ImageLabel')
+			closeImg.Size = UDim2.fromOffset(24, 24)
+			closeImg.BackgroundTransparency = 1
+			closeImg.Image = 'rbxassetid://121816018671466'
+			closeImg.ImageColor3 = Color3.fromRGB(180, 180, 180)
+			closeImg.ImageTransparency = 0.5
+			closeImg.ZIndex = 12
+			closeImg.Parent = closeBtn
+			closeBtn.MouseButton1Click:Connect(function()
+				ESPPreview:Toggle()
+			end)
+
+			local canvas = Instance.new('Frame')
+			canvas.Size = UDim2.new(1, -20, 1, -55)
+			canvas.Position = UDim2.fromOffset(10, 48)
+			canvas.BackgroundColor3 = Color3.fromRGB(30, 60, 40)
+			canvas.BorderSizePixel = 0
+			canvas.ZIndex = 10
+			canvas.ClipsDescendants = true
+			canvas.Parent = bg
+			local canvasCorner = Instance.new('UICorner')
+			canvasCorner.CornerRadius = UDim.new(0, 4)
+			canvasCorner.Parent = canvas
+
+			local sky = Instance.new('Frame')
+			sky.Size = UDim2.new(1, 0, 0.55, 0)
+			sky.BackgroundColor3 = Color3.fromRGB(100, 160, 220)
+			sky.BorderSizePixel = 0
+			sky.ZIndex = 9
+			sky.Parent = canvas
+
+			local ground = Instance.new('Frame')
+			ground.Size = UDim2.new(1, 0, 0.45, 0)
+			ground.Position = UDim2.new(0, 0, 0.55, 0)
+			ground.BackgroundColor3 = Color3.fromRGB(45, 80, 50)
+			ground.BorderSizePixel = 0
+			ground.ZIndex = 9
+			ground.Parent = canvas
+
+			local playerFrame = Instance.new('Frame')
+			playerFrame.Size = UDim2.fromOffset(44, 88)
+			playerFrame.Position = UDim2.new(0.5, -22, 0.5, -44)
+			playerFrame.BackgroundTransparency = 1
+			playerFrame.ZIndex = 11
+			playerFrame.Parent = canvas
+
+			local chams = Instance.new('Frame')
+			chams.Size = UDim2.fromOffset(44, 88)
+			chams.BackgroundColor3 = Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)
+			chams.BackgroundTransparency = 0.5
+			chams.BorderSizePixel = 0
+			chams.ZIndex = 11
+			chams.Visible = vape.Modules.Chams and vape.Modules.Chams.Enabled or false
+			chams.Parent = playerFrame
+			local chamsCorner = Instance.new('UICorner')
+			chamsCorner.CornerRadius = UDim.new(0, 3)
+			chamsCorner.Parent = chams
+
+			local head = Instance.new('Frame')
+			head.Size = UDim2.fromOffset(20, 20)
+			head.Position = UDim2.fromOffset(12, 0)
+			head.BackgroundColor3 = Color3.fromRGB(210, 170, 120)
+			head.BorderSizePixel = 0
+			head.ZIndex = 12
+			head.Parent = playerFrame
+
+			local body = Instance.new('Frame')
+			body.Size = UDim2.fromOffset(24, 30)
+			body.Position = UDim2.fromOffset(10, 22)
+			body.BackgroundColor3 = Color3.fromRGB(80, 80, 180)
+			body.BorderSizePixel = 0
+			body.ZIndex = 12
+			body.Parent = playerFrame
+
+			local legs = Instance.new('Frame')
+			legs.Size = UDim2.fromOffset(24, 26)
+			legs.Position = UDim2.fromOffset(10, 54)
+			legs.BackgroundColor3 = Color3.fromRGB(60, 60, 120)
+			legs.BorderSizePixel = 0
+			legs.ZIndex = 12
+			legs.Parent = playerFrame
+
+			local arm1 = Instance.new('Frame')
+			arm1.Size = UDim2.fromOffset(8, 28)
+			arm1.Position = UDim2.fromOffset(2, 22)
+			arm1.BackgroundColor3 = Color3.fromRGB(80, 80, 180)
+			arm1.BorderSizePixel = 0
+			arm1.ZIndex = 12
+			arm1.Parent = playerFrame
+
+			local arm2 = arm1:Clone()
+			arm2.Position = UDim2.fromOffset(34, 22)
+			arm2.Parent = playerFrame
+
+			local espBox = Instance.new('Frame')
+			espBox.Size = UDim2.fromOffset(44, 88)
+			espBox.BackgroundTransparency = 1
+			espBox.BorderSizePixel = 0
+			espBox.ZIndex = 13
+			espBox.Visible = vape.Modules.ESP and vape.Modules.ESP.Enabled or false
+			espBox.Parent = playerFrame
+			local espStroke = Instance.new('UIStroke')
+			espStroke.Color = Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)
+			espStroke.Thickness = 1.5
+			espStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			espStroke.Parent = espBox
+
+			local healthBg = Instance.new('Frame')
+			healthBg.Size = UDim2.fromOffset(4, 88)
+			healthBg.Position = UDim2.fromOffset(-8, 0)
+			healthBg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+			healthBg.BorderSizePixel = 0
+			healthBg.ZIndex = 13
+			healthBg.Visible = vape.Modules.ESP and vape.Modules.ESP.Enabled or false
+			healthBg.Parent = playerFrame
+			local healthFill = Instance.new('Frame')
+			healthFill.Size = UDim2.fromScale(1, 0.7)
+			healthFill.Position = UDim2.fromScale(0, 0.3)
+			healthFill.BackgroundColor3 = Color3.fromHSV(0.7 / 2.5, 0.89, 0.75)
+			healthFill.BorderSizePixel = 0
+			healthFill.ZIndex = 14
+			healthFill.Parent = healthBg
+
+			local nameTag = Instance.new('TextLabel')
+			nameTag.Size = UDim2.fromOffset(70, 16)
+			nameTag.Position = UDim2.new(0.5, -35, 0, -20)
+			nameTag.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+			nameTag.BackgroundTransparency = 0.5
+			nameTag.BorderSizePixel = 0
+			nameTag.Text = 'Enemy'
+			nameTag.TextColor3 = Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)
+			nameTag.Font = Enum.Font.Arial
+			nameTag.TextSize = 11
+			nameTag.ZIndex = 14
+			nameTag.Visible = vape.Modules.NameTags and vape.Modules.NameTags.Enabled or false
+			nameTag.Parent = playerFrame
+			local nameCorner = Instance.new('UICorner')
+			nameCorner.CornerRadius = UDim.new(0, 3)
+			nameCorner.Parent = nameTag
+
+			local function getESPColor()
+				if vape.Modules.ESP and vape.Modules.ESP.Options['Player Color'] then
+					local c = vape.Modules.ESP.Options['Player Color']
+					return Color3.fromHSV(c.Hue, c.Sat, c.Value)
+				end
+				return Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)
+			end
+
+			local function getChamsColor()
+				if vape.Modules.Chams and vape.Modules.Chams.Options['Color'] then
+					local c = vape.Modules.Chams.Options['Color']
+					return Color3.fromHSV(c.Hue, c.Sat, c.Value), 1 - (c.Opacity or 0.5)
+				end
+				return Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value), 0.5
+			end
+
+			local function getNameColor()
+				if vape.Modules.NameTags and vape.Modules.NameTags.Options['Player Color'] then
+					local c = vape.Modules.NameTags.Options['Player Color']
+					return Color3.fromHSV(c.Hue, c.Sat, c.Value)
+				end
+				return Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)
+			end
+
+			ESPPreview:Clean(game:GetService('RunService').Heartbeat:Connect(function()
+				local espEnabled = vape.Modules.ESP and vape.Modules.ESP.Enabled or false
+				local chamsEnabled = vape.Modules.Chams and vape.Modules.Chams.Enabled or false
+				local nameTagsEnabled = vape.Modules.NameTags and vape.Modules.NameTags.Enabled or false
+
+				espBox.Visible = espEnabled
+				healthBg.Visible = espEnabled
+				chams.Visible = chamsEnabled
+				nameTag.Visible = nameTagsEnabled
+
+				if espEnabled then
+					local col = getESPColor()
+					espStroke.Color = col
+				end
+
+				if chamsEnabled then
+					local col, trans = getChamsColor()
+					chams.BackgroundColor3 = col
+					chams.BackgroundTransparency = trans
+				end
+
+				if nameTagsEnabled then
+					nameTag.TextColor3 = getNameColor()
+				end
+			end))
+		end,
+		Tooltip = 'Live preview of ESP, Chams and NameTags'
+	})
+end)
+																																																							
+
+run(function()
 	local StorageESP
 	local List
 	local Background
