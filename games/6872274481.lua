@@ -1717,6 +1717,147 @@ run(function()
 end)
 
 run(function()
+	local Backtrack
+	local Delay
+	local Mode
+	local ShowGhost
+	local positionHistory = {}
+	local ghostPart = nil
+	local originalCFrame = nil
+	local active = false
+	local MAX_HISTORY = 60
+	local function getRoot()
+		return entitylib.character and entitylib.character.RootPart
+	end
+	local function createGhost()
+		if ghostPart then ghostPart:Destroy() end
+		local root = getRoot()
+		if not root then return end
+		ghostPart = Instance.new('Part')
+		ghostPart.Size = root.Size
+		ghostPart.Anchored = true
+		ghostPart.CanCollide = false
+		ghostPart.CanQuery = false
+		ghostPart.CastShadow = false
+		ghostPart.Transparency = 0.5
+		ghostPart.Color = Color3.fromRGB(0, 120, 255)
+		ghostPart.Material = Enum.Material.Neon
+		ghostPart.Name = 'BacktrackGhost'
+		ghostPart.Parent = workspace
+		bedwars.QueryUtil:setQueryIgnored(ghostPart, true)
+	end
+	local function destroyGhost()
+		if ghostPart then
+			ghostPart:Destroy()
+			ghostPart = nil
+		end
+	end
+	local function recordPosition()
+		local root = getRoot()
+		if not root or not root.Parent then return end
+		table.insert(positionHistory, {
+			cframe = root.CFrame,
+			time = tick()
+		})
+		if #positionHistory > MAX_HISTORY then
+			table.remove(positionHistory, 1)
+		end
+	end
+	local function getDelayedCFrame()
+		local targetTime = tick() - Delay.Value
+		local best = nil
+		for i = #positionHistory, 1, -1 do
+			local entry = positionHistory[i]
+			if entry.time <= targetTime then
+				best = entry.cframe
+				break
+			end
+		end
+		return best or (positionHistory[1] and positionHistory[1].cframe)
+	end
+	local function applyBacktrack()
+		local root = getRoot()
+		if not root or not root.Parent then return end
+		if not isnetworkowner(root) then return end
+		local delayed = getDelayedCFrame()
+		if not delayed then return end
+		originalCFrame = root.CFrame
+		if Mode.Value == 'Position' then
+			root.CFrame = delayed
+		elseif Mode.Value == 'Offset' then
+			local offset = delayed.Position - root.Position
+			root.CFrame = root.CFrame + offset
+		end
+		if ShowGhost.Enabled and ghostPart then
+			ghostPart.CFrame = originalCFrame
+		end
+	end
+	local function restoreCFrame()
+		local root = getRoot()
+		if not root or not root.Parent or not originalCFrame then return end
+		if not isnetworkowner(root) then return end
+		root.CFrame = originalCFrame
+		originalCFrame = nil
+	end
+	Backtrack = vape.Categories.Blatant:CreateModule({
+		Name = 'Backtrack',
+		Function = function(callback)
+			if callback then
+				if ShowGhost.Enabled then
+					createGhost()
+				end
+				Backtrack:Clean(runService.Heartbeat:Connect(function()
+					recordPosition()
+				end))
+				Backtrack:Clean(runService.PreSimulation:Connect(function()
+					if not entitylib.isAlive then return end
+					applyBacktrack()
+				end))
+				Backtrack:Clean(runService.PostSimulation:Connect(function()
+					restoreCFrame()
+				end))
+				Backtrack:Clean(function()
+					restoreCFrame()
+					destroyGhost()
+					table.clear(positionHistory)
+					originalCFrame = nil
+				end)
+			else
+				restoreCFrame()
+				destroyGhost()
+				table.clear(positionHistory)
+				originalCFrame = nil
+			end
+		end,
+		Tooltip = 'Delays your position on the server to increase effective attack range'
+	})
+	Delay = Backtrack:CreateSlider({
+		Name = 'Delay',
+		Min = 0.05,
+		Max = 0.5,
+		Default = 0.15,
+		Decimal = 100,
+		Suffix = 's',
+		Tooltip = 'How far back in time to send your position'
+	})
+	Mode = Backtrack:CreateDropdown({
+		Name = 'Mode',
+		List = {'Position', 'Offset'},
+		Tooltip = 'Position: full CFrame delay. Offset: only delays movement delta'
+	})
+	ShowGhost = Backtrack:CreateToggle({
+		Name = 'Show ghost',
+		Default = false,
+		Tooltip = 'Shows a blue ghost at your real position while backtracking',
+		Function = function(val)
+			if Backtrack.Enabled then
+				if val then createGhost() else destroyGhost() end
+			end
+		end
+	})
+end)													
+
+run(function()
 	local AntiHit
 	local Mode
 	local TriggerRange
