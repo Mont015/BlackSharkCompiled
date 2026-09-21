@@ -1723,6 +1723,7 @@ run(function()
 	local positionHistory = {}
 	local ghostPart = nil
 	local MAX_HISTORY = 128
+	local connection = nil
 	local function getRoot()
 		return entitylib.character and entitylib.character.RootPart
 	end
@@ -1752,12 +1753,19 @@ run(function()
 	local function getDelayedCFrame()
 		local targetTime = tick() - Delay.Value
 		for i = #positionHistory, 1, -1 do
-			local entry = positionHistory[i]
-			if entry.time <= targetTime then
-				return entry.cframe
+			if positionHistory[i].time <= targetTime then
+				return positionHistory[i].cframe
 			end
 		end
 		return positionHistory[1] and positionHistory[1].cframe
+	end
+	local function fireTouchInterest(tool, target)
+		if not tool or not target then return end
+		local ti = tool:FindFirstChildOfClass('TouchTransmitter') or tool:FindFirstChild('Handle') and tool.Handle:FindFirstChildOfClass('TouchTransmitter')
+		if ti then
+			firetouchinterest(tool, target, 0)
+			firetouchinterest(tool, target, 1)
+		end
 	end
 	Backtrack = vape.Categories.Blatant:CreateModule({
 		Name = 'Backtrack',
@@ -1783,21 +1791,17 @@ run(function()
 					local root = getRoot()
 					if not root or not root.Parent then return end
 					if not isnetworkowner(root) then return end
-
 					local delayed = getDelayedCFrame()
 					if not delayed then return end
-
-					pcall(sethiddenproperty, root, 'CFrame', delayed)
-				end))
-				Backtrack:Clean(runService.PostSimulation:Connect(function()
-					if not entitylib.isAlive then return end
-					local root = getRoot()
-					if not root or not root.Parent then return end
-					if not isnetworkowner(root) then return end
-					local current = positionHistory[#positionHistory]
-					if current then
-						pcall(sethiddenproperty, root, 'CFrame', current.cframe)
-					end
+					local realCF = root.CFrame
+					local mt = getrawmetatable(root)
+					local old = mt.__newindex
+					rawset(mt, '__newindex', function(t, k, v)
+						if t == root and k == 'CFrame' then return end
+						return old(t, k, v)
+					end)
+					rawset(root, 'CFrame', delayed)
+					rawset(mt, '__newindex', old)
 				end))
 				Backtrack:Clean(function()
 					destroyGhost()
@@ -1828,6 +1832,7 @@ run(function()
 		end
 	})
 end)
+
 													
 
 run(function()
