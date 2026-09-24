@@ -3580,7 +3580,7 @@ run(function()
 	local rayParams = RaycastParams.new()
 	local groundHit
 	task.spawn(function()
-		groundHit = bedwars.Client:Get(remotes.GroundHit).instance
+		groundHit = game:GetService('ReplicatedStorage').rbxts_include['node_modules']['@rbxts']['net']['out']['_NetManaged'].GroundHit
 	end)
 	
 	NoFall = vape.Categories.Blatant:CreateModule({
