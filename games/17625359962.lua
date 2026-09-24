@@ -17,8 +17,8 @@ local uipallet = vape.Libraries.uipallet
 local whitelist = vape.Libraries.whitelist
 
 local RS = cloneref(game:GetService('ReplicatedStorage'))
-local AttackRemote = RS.Remotes.Attack
 local CameraRemote = RS.Remotes.Replication.Fighter.UpdateCameraRotations
+local ReplicateRemote = RS.Remotes.Replication.Fighter.Replicate
 
 for _, v in {'AntiRagdoll', 'TriggerBot', 'SilentAim', 'AutoRejoin', 'Rejoin', 'Disabler', 'Timer', 'ServerHop', 'MouseTP', 'MurderMystery', 'Schematica', 'BedESP', 'KitESP', 'ChatSpammer', 'Xray', 'StorageESP', 'Parkour', 'AutoTool', 'AutoBalloon', 'RavenTP', 'MissileTP', 'BedProtector', 'BedPlates', 'AutoShoot', 'AutoPlay', 'AutoPearl', 'AutoKit', 'AutoVoidDrop', 'PickupRange', 'ChestSteal', 'AutoToxic', 'FastProxPrompt', 'Breaker', 'AutoSuffocate', 'Waypoints', 'Search', 'GamingChair', 'Invisible', 'Arrows', 'Tracers', 'NameTags', 'Chams', 'Health'} do
 	pcall(function() vape:Remove(v) end)
@@ -97,13 +97,17 @@ run(function()
 			if callback then
 				oldNamecall = hookmetamethod(game, '__namecall', function(self, ...)
 					local method = getnamecallmethod()
-					if method == 'FireServer' and self == AttackRemote then
+					if method == 'FireServer' and self == CameraRemote then
 						local target = getTarget()
 						if target then
 							local targetPart = Part.Value == 'Head' and target.Character:FindFirstChild('Head') or target.RootPart
 							if targetPart then
 								targetinfo.Targets[target] = tick() + 1
-								return oldNamecall(self, targetPart)
+								local args = {...}
+								if type(args[1]) == 'table' then
+									args[1].cf = CFrame.lookAt(gameCamera.CFrame.Position, targetPart.Position)
+								end
+								return oldNamecall(self, table.unpack(args))
 							end
 						end
 					end
@@ -264,11 +268,11 @@ run(function()
 					if not hitPlr or hitPlr == lplr then return end
 					if TeamCheck.Enabled and lplr.Team == hitPlr.Team then return end
 
-					local head = hitChar:FindFirstChild('Head')
-					if head then
-						task.wait(1 / CPS.GetRandomValue())
-						AttackRemote:FireServer(head)
-					end
+					task.wait(1 / CPS.GetRandomValue())
+					inputService:SendKeyEvent(true, Enum.KeyCode.Unknown, false, game)
+					mouse1press()
+					task.wait(0.05)
+					mouse1release()
 				end))
 			end
 		end,
