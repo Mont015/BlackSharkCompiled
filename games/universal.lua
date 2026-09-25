@@ -3767,12 +3767,12 @@ run(function()
 	})
 	TargetLock = TargetStrafe:CreateToggle({
 		Name = 'Target Lock',
-		Default = true,
+		Default = false,
 		Tooltip = 'Follows Killaura\'s current target when available.'
 	})
 	VoidSafety = TargetStrafe:CreateToggle({
 		Name = 'Void Safety',
-		Default = true,
+		Default = false,
 		Tooltip = 'Stops strafing when the next position has no ground below it.'
 	})
 
