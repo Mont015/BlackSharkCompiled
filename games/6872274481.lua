@@ -2669,6 +2669,7 @@ run(function()
 	local AttackRemote
 	local LastManualSwing = 0
 	local NextAttack = 0
+	local HitInterval = 2 / 7
 	local AttackIndex = 1
 	local PrimaryTarget
 	local AnimationToken = 0
@@ -2953,7 +2954,7 @@ run(function()
 				end
 
 				repeat
-					local now = tick()
+					local now = workspace:GetServerTimeNow()
 					local sword, meta = getAttackData()
 					local root = entitylib.character and entitylib.character.RootPart
 					local targets = sword and root and collectTargets(root) or {}
@@ -2979,9 +2980,9 @@ run(function()
 							local sent = attackTarget(sword, root, target)
 							if sent then
 								AttackIndex = (targetIndex % #attackable) + 1
-								NextAttack = tick() + math.max(tonumber(meta.sword.attackSpeed) or 0.11, 0.05)
+								NextAttack = now + HitInterval
 							else
-								NextAttack = tick() + 0.1
+								NextAttack = now + 0.1
 							end
 						end
 					else
