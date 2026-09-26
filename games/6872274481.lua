@@ -4619,7 +4619,12 @@ run(function()
 end)
 
 run(function()
-	local ESPPreview = vape.Categories.Render:CreateModule({
+	local ESPPreview
+	local PreviewESP
+	local PreviewChams
+	local PreviewNameTags
+
+	ESPPreview = vape.Categories.Render:CreateModule({
 		Name = 'ESP Preview',
 		Function = function(callback)
 			if not callback then return end
@@ -4728,7 +4733,7 @@ run(function()
 			chams.BackgroundTransparency = 0.5
 			chams.BorderSizePixel = 0
 			chams.ZIndex = 11
-			chams.Visible = vape.Modules.Chams and vape.Modules.Chams.Enabled or false
+			chams.Visible = PreviewChams and PreviewChams.Enabled or true
 			chams.Parent = playerFrame
 			local chamsCorner = Instance.new('UICorner')
 			chamsCorner.CornerRadius = UDim.new(0, 3)
@@ -4775,7 +4780,7 @@ run(function()
 			espBox.BackgroundTransparency = 1
 			espBox.BorderSizePixel = 0
 			espBox.ZIndex = 13
-			espBox.Visible = vape.Modules.ESP and vape.Modules.ESP.Enabled or false
+			espBox.Visible = PreviewESP and PreviewESP.Enabled or true
 			espBox.Parent = playerFrame
 			local espStroke = Instance.new('UIStroke')
 			espStroke.Color = Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)
@@ -4789,7 +4794,7 @@ run(function()
 			healthBg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 			healthBg.BorderSizePixel = 0
 			healthBg.ZIndex = 13
-			healthBg.Visible = vape.Modules.ESP and vape.Modules.ESP.Enabled or false
+			healthBg.Visible = PreviewESP and PreviewESP.Enabled or true
 			healthBg.Parent = playerFrame
 			local healthFill = Instance.new('Frame')
 			healthFill.Size = UDim2.fromScale(1, 0.7)
@@ -4810,40 +4815,32 @@ run(function()
 			nameTag.Font = Enum.Font.Arial
 			nameTag.TextSize = 11
 			nameTag.ZIndex = 14
-			nameTag.Visible = vape.Modules.NameTags and vape.Modules.NameTags.Enabled or false
+			nameTag.Visible = PreviewNameTags and PreviewNameTags.Enabled or true
 			nameTag.Parent = playerFrame
 			local nameCorner = Instance.new('UICorner')
 			nameCorner.CornerRadius = UDim.new(0, 3)
 			nameCorner.Parent = nameTag
 
 			local function getESPColor()
-				if vape.Modules.ESP and vape.Modules.ESP.Options['Player Color'] then
-					local c = vape.Modules.ESP.Options['Player Color']
-					return Color3.fromHSV(c.Hue, c.Sat, c.Value)
-				end
 				return Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)
 			end
 
 			local function getChamsColor()
-				if vape.Modules.Chams and vape.Modules.Chams.Options['Color'] then
-					local c = vape.Modules.Chams.Options['Color']
-					return Color3.fromHSV(c.Hue, c.Sat, c.Value), 1 - (c.Opacity or 0.5)
-				end
 				return Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value), 0.5
 			end
 
 			local function getNameColor()
-				if vape.Modules.NameTags and vape.Modules.NameTags.Options['Player Color'] then
-					local c = vape.Modules.NameTags.Options['Player Color']
+				if vape.Modules.NameTags and vape.Modules.NameTags.Options.Color then
+					local c = vape.Modules.NameTags.Options.Color
 					return Color3.fromHSV(c.Hue, c.Sat, c.Value)
 				end
 				return Color3.fromHSV(vape.GUIColor.Hue, vape.GUIColor.Sat, vape.GUIColor.Value)
 			end
 
 			ESPPreview:Clean(game:GetService('RunService').Heartbeat:Connect(function()
-				local espEnabled = vape.Modules.ESP and vape.Modules.ESP.Enabled or false
-				local chamsEnabled = vape.Modules.Chams and vape.Modules.Chams.Enabled or false
-				local nameTagsEnabled = vape.Modules.NameTags and vape.Modules.NameTags.Enabled or false
+				local espEnabled = PreviewESP and PreviewESP.Enabled or true
+				local chamsEnabled = PreviewChams and PreviewChams.Enabled or true
+				local nameTagsEnabled = PreviewNameTags and PreviewNameTags.Enabled or true
 
 				espBox.Visible = espEnabled
 				healthBg.Visible = espEnabled
@@ -4868,6 +4865,9 @@ run(function()
 		end,
 		Tooltip = 'Live preview of ESP, Chams and NameTags'
 	})
+	PreviewESP = ESPPreview:CreateToggle({Name = 'Show ESP', Default = true})
+	PreviewChams = ESPPreview:CreateToggle({Name = 'Show Chams', Default = true})
+	PreviewNameTags = ESPPreview:CreateToggle({Name = 'Show NameTag', Default = true})
 end)
 																																																							
 
@@ -5853,16 +5853,22 @@ run(function()
 			return nil
 		end
 		result[1].Parent = game:GetService('ReplicatedStorage')
-		local folder = result[1]:FindFirstChildOfClass('Folder')
-		loadedPacks[name] = folder or result[1]
-		return folder or result[1]
+		-- Keep the asset root: pack models are not all direct children of one folder.
+		loadedPacks[name] = result[1]
+		return result[1]
 	end
 
-	local function applyToAccessory(accessory, packFolder)
-		local handle = accessory:FindFirstChild('Handle')
+	local function findMeshPart(object)
+		if object and object:IsA('MeshPart') then return object end
+		return object and object:FindFirstChildWhichIsA('MeshPart', true)
+	end
+
+	local function applyToItem(item, packFolder)
+		local handle = findMeshPart(item:FindFirstChild('Handle', true)) or findMeshPart(item)
 		if not handle then return end
 
-		local meshPart = packFolder:FindFirstChild(accessory.Name)
+		local packItem = packFolder:FindFirstChild(item.Name, true) or packFolder:FindFirstChild(handle.Name, true)
+		local meshPart = findMeshPart(packItem)
 		if not meshPart then return end
 
 		if not originalData[handle] then
@@ -5877,37 +5883,38 @@ run(function()
 	end
 
 	local function applyPack(packFolder)
-		local vm = workspace.Camera:FindFirstChild('Viewmodel')
-		if not vm then return end
-
-		for _, acc in vm:GetChildren() do
-			if acc:IsA('Accessory') then
-				applyToAccessory(acc, packFolder)
+		local function applyViewmodel(vm)
+			for _, item in vm:GetChildren() do
+				applyToItem(item, packFolder)
 			end
+			table.insert(activeConnections, vm.ChildAdded:Connect(function(item)
+				task.wait(0.05)
+				applyToItem(item, packFolder)
+			end))
 		end
 
-		local conn = vm.ChildAdded:Connect(function(acc)
-			task.wait(0.05)
-			if acc:IsA('Accessory') then
-				applyToAccessory(acc, packFolder)
-			end
-		end)
-		table.insert(activeConnections, conn)
+		local camera = workspace.CurrentCamera or gameCamera
+		if camera then
+			local vm = camera:FindFirstChild('Viewmodel')
+			if vm then applyViewmodel(vm) end
+			table.insert(activeConnections, camera.ChildAdded:Connect(function(child)
+				if child.Name == 'Viewmodel' then
+					task.wait(0.05)
+					applyViewmodel(child)
+				end
+			end))
+		end
 
 		if lplr.Character then
-			for _, acc in lplr.Character:GetChildren() do
-				if acc:IsA('Accessory') then
-					applyToAccessory(acc, packFolder)
-				end
+			for _, item in lplr.Character:GetChildren() do
+				applyToItem(item, packFolder)
 			end
 		end
 
 		local charConn = lplr.CharacterAdded:Connect(function(char)
 			task.wait(0.3)
-			for _, acc in char:GetChildren() do
-				if acc:IsA('Accessory') then
-					applyToAccessory(acc, packFolder)
-				end
+			for _, item in char:GetChildren() do
+				applyToItem(item, packFolder)
 			end
 		end)
 		table.insert(activeConnections, charConn)
