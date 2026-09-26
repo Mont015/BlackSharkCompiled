@@ -5832,19 +5832,31 @@ end)
 run(function()
 	local TexturePacks
 	local PackSelect
-
 	local packIds = {
 		Pack1 = 85636882121599,
 		Pack2 = 93825538413084,
 		Pack3 = 104066331647966,
 		Pack4 = 79748050012155
 	}
-
+	local nameMap = {
+		wood_sword = 'wood',
+		stone_sword = 'stone',
+		iron_sword = 'iron',
+		diamond_sword = 'diamond',
+		emerald_sword = 'emerald',
+		rageblade = 'rageblade',
+		wood_axe = 'woodaxe',
+		stone_axe = 'stoneaxe',
+		iron_axe = 'ironaxe',
+		diamond_axe = 'diamondaxe',
+		wood_pickaxe = 'woodpick',
+		stone_pickaxe = 'stonepick',
+		iron_pickaxe = 'ironpick',
+		diamond_pickaxe = 'diamondpick',
+	}
 	local loadedPacks = {}
 	local activeConnections = {}
 	local originalHandles = {}
-	local appliedClones = {}
-
 	local function loadPack(name)
 		if loadedPacks[name] then return loadedPacks[name] end
 		local id = packIds[name]
@@ -5855,129 +5867,98 @@ run(function()
 			return nil
 		end
 		pcall(function() result[1].Parent = game:GetService('ReplicatedStorage') end)
-		loadedPacks[name] = result[1]
-		return result[1]
+		local index = {}
+		for _, v in result[1]:GetDescendants() do
+			if v:IsA('MeshPart') then
+				index[v.Name:lower()] = v
+			end
+		end
+		loadedPacks[name] = index
+		return index
 	end
-
-	local function getFirstMeshPart(root)
-		if root:IsA('MeshPart') then return root end
-		for _, v in root:GetDescendants() do
-			if v:IsA('MeshPart') then return v end
+	local function getPackPart(index, accessoryName)
+		local key = nameMap[accessoryName:lower()]
+		if key then
+			local part = index[key:lower()]
+			if part then return part end
+		end
+		for k, v in index do
+			if accessoryName:lower():find(k, 1, true) then
+				return v
+			end
 		end
 		return nil
 	end
-
-	local function removeClone(handle)
-		if appliedClones[handle] then
-			pcall(function() appliedClones[handle]:Destroy() end)
-			appliedClones[handle] = nil
-		end
-	end
-
-	local function restoreHandle(handle)
-		if not handle or not handle.Parent then return end
-		local data = originalHandles[handle]
-		if not data then return end
-		handle.Transparency = data.Transparency
-		removeClone(handle)
-		originalHandles[handle] = nil
-	end
-
-	local function applyToHandle(handle, meshPart)
-		if not handle or not handle.Parent then return end
-		if not meshPart then return end
-
+	local function applyToHandle(handle, packPart)
+		if not handle or not handle.Parent or not packPart then return end
 		if not originalHandles[handle] then
-			originalHandles[handle] = {Transparency = handle.Transparency}
+			originalHandles[handle] = {
+				MeshId = handle.MeshId,
+				TextureID = handle.TextureID,
+			}
 		end
-
-		removeClone(handle)
-		handle.Transparency = 1
-
-		local clone = meshPart:Clone()
-		clone.Name = 'BSTexture'
-		clone.Anchored = false
-		clone.CanCollide = false
-		clone.CanQuery = false
-		clone.CastShadow = false
-		clone.Massless = true
-		clone.Transparency = 0
-		clone.Size = handle.Size
-		clone.CFrame = handle.CFrame
-		clone.Parent = handle.Parent
-
-		local weld = Instance.new('WeldConstraint')
-		weld.Part0 = handle
-		weld.Part1 = clone
-		weld.Parent = clone
-
-		appliedClones[handle] = clone
+		handle.MeshId = packPart.MeshId
+		handle.TextureID = packPart.TextureID
 	end
-
-	local function applyToViewmodel(vm, meshPart)
-		if not vm or not meshPart then return end
-
+	local function applyToViewmodel(vm, packIndex)
+		if not vm then return end
 		for _, child in vm:GetChildren() do
-			if child:IsA('Accessory') or child:IsA('Tool') or child:IsA('Model') then
+			if child:IsA('Accessory') then
 				local handle = child:FindFirstChild('Handle')
 				if handle and handle:IsA('MeshPart') then
-					applyToHandle(handle, meshPart)
+					local packPart = getPackPart(packIndex, child.Name)
+					if packPart then
+						applyToHandle(handle, packPart)
+					end
 				end
 			end
 		end
-
 		local conn = vm.ChildAdded:Connect(function(child)
 			task.wait(0.08)
 			if not TexturePacks.Enabled then return end
-			if child:IsA('Accessory') or child:IsA('Tool') or child:IsA('Model') then
+			if child:IsA('Accessory') then
 				local handle = child:FindFirstChild('Handle')
 				if handle and handle:IsA('MeshPart') then
-					applyToHandle(handle, meshPart)
+					local packPart = getPackPart(packIndex, child.Name)
+					if packPart then
+						applyToHandle(handle, packPart)
+					end
 				end
 			end
 		end)
 		table.insert(activeConnections, conn)
 	end
-
-	local function applyPack(packRoot)
-		local meshPart = getFirstMeshPart(packRoot)
-		if not meshPart then
-			vape:CreateNotification('TexturePack', 'No mesh found in pack', 5, 'alert')
-			return
-		end
-
-		local camera = workspace.CurrentCamera or gameCamera
-		local vm = camera and camera:FindFirstChild('Viewmodel')
-		applyToViewmodel(vm, meshPart)
-
-		local camConn = camera.ChildAdded:Connect(function(child)
-			if child.Name == 'Viewmodel' then
-				task.wait(0.05)
-				applyToViewmodel(child, meshPart)
-			end
-		end)
-		table.insert(activeConnections, camConn)
-
-		local charConn = lplr.CharacterAdded:Connect(function()
-			task.wait(0.3)
-			local newVm = camera and camera:FindFirstChild('Viewmodel')
-			if newVm then applyToViewmodel(newVm, meshPart) end
-		end)
-		table.insert(activeConnections, charConn)
-	end
-
 	local function clearAll()
 		for _, conn in activeConnections do
 			pcall(function() conn:Disconnect() end)
 		end
 		table.clear(activeConnections)
-		for handle in originalHandles do
-			restoreHandle(handle)
+		for handle, data in originalHandles do
+			if handle and handle.Parent then
+				handle.MeshId = data.MeshId
+				handle.TextureID = data.TextureID
+			end
 		end
 		table.clear(originalHandles)
-		table.clear(appliedClones)
 	end
-
+	local function applyPack(packIndex)
+		local camera = workspace.CurrentCamera or gameCamera
+		local vm = camera and camera:FindFirstChild('Viewmodel')
+		applyToViewmodel(vm, packIndex)
+		local camConn = camera.ChildAdded:Connect(function(child)
+			if child.Name == 'Viewmodel' then
+				task.wait(0.05)
+				applyToViewmodel(child, packIndex)
+			end
+		end)
+		table.insert(activeConnections, camConn)
+		local charConn = lplr.CharacterAdded:Connect(function()
+			task.wait(0.3)
+			local newVm = camera and camera:FindFirstChild('Viewmodel')
+			if newVm then applyToViewmodel(newVm, packIndex) end
+		end)
+		table.insert(activeConnections, charConn)
+	end
 	TexturePacks = vape.Categories.Render:CreateModule({
 		Name = 'TexturePack',
 		Function = function(callback)
@@ -5990,7 +5971,6 @@ run(function()
 		end,
 		Tooltip = 'Apply custom sword texture packs'
 	})
-
 	PackSelect = TexturePacks:CreateDropdown({
 		Name = 'Pack',
 		List = {'Pack1', 'Pack2', 'Pack3', 'Pack4'},
@@ -6005,6 +5985,7 @@ run(function()
 	})
 end)
 
+
 run(function()
 	local RavenTP
 	
@@ -6018,7 +5999,6 @@ run(function()
 					Players = true,
 					Part = 'RootPart'
 				})
-	
 				if getItem('raven') and plr then
 					bedwars.Client:Get(remotes.SpawnRaven):CallServerAsync():andThen(function(projectile)
 						if projectile then
@@ -6056,7 +6036,6 @@ run(function()
 	local AutoRotate
 	local parts, guidata = {}, {}
 	local point1, point2
-
 	local poschecklist = {}
 	for x = -3, 3, 3 do
 		for y = -3, 3, 3 do
@@ -6067,14 +6046,12 @@ run(function()
 			end
 		end
 	end
-
 	local function checkAdjacent(pos)
 		for _, v in poschecklist do
 			if getPlacedBlock(pos + v) then return true end
 		end
 		return false
 	end
-
 	local function getPlacedBlocksInPoints(s, e)
 		local list, blocks = {}, bedwars.BlockController:getStore()
 		local minX, maxX = math.min(s.X, e.X), math.max(s.X, e.X)
@@ -6093,7 +6070,6 @@ run(function()
 		end
 		return list
 	end
-
 	local function getFileName()
 		local name = File.Value or ''
 		if name == '' then name = 'schematica_save' end
@@ -6103,31 +6079,25 @@ run(function()
 		end
 		return name
 	end
-
 	local function clearMaterialDisplay()
 		for _, v in guidata do
 			pcall(function() v:Destroy() end)
 		end
 		table.clear(guidata)
 	end
-
 	local function loadMaterials()
 		clearMaterialDisplay()
 		local path = getFileName()
 		local suc, read = pcall(function()
 			return isfile(path) and httpService:JSONDecode(readfile(path))
 		end)
-
 		if not suc or not read then return end
-
 		local items = {}
 		for _, v in read do
 			items[v[2]] = (items[v[2]] or 0) + 1
 		end
-
 		local totalBlocks = 0
 		for _, v in items do totalBlocks += v end
-
 		local header = Instance.new('Frame')
 		header.Size = UDim2.new(1, 0, 0, 24)
 		header.BackgroundTransparency = 1
@@ -6142,7 +6112,6 @@ run(function()
 		headerText.FontFace = uipallet.Font
 		headerText.Parent = header
 		table.insert(guidata, header)
-
 		for i, v in items do
 			local holder = Instance.new('Frame')
 			holder.Size = UDim2.new(1, 0, 0, 30)
@@ -6166,11 +6135,9 @@ run(function()
 			text.Parent = holder
 			table.insert(guidata, holder)
 		end
-
 		table.clear(read)
 		table.clear(items)
 	end
-
 	local function save()
 		if point1 and point2 then
 			local tab = getPlacedBlocksInPoints(point1, point2)
