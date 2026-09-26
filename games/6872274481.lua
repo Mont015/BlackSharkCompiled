@@ -5922,7 +5922,10 @@ run(function()
 		if not originalData[handle] then
 			originalData[handle] = {
 				MeshId = handle.MeshId,
-				TextureId = handle:IsA('MeshPart') and handle.TextureID or handle.TextureId
+				TextureId = handle:IsA('MeshPart') and handle.TextureID or handle.TextureId,
+				Size = handle:IsA('MeshPart') and handle.Size or nil,
+				Scale = handle:IsA('SpecialMesh') and handle.Scale or nil,
+				Offset = handle:IsA('SpecialMesh') and handle.Offset or nil
 			}
 		end
 
@@ -5931,6 +5934,12 @@ run(function()
 			handle.TextureID = meshPart:IsA('MeshPart') and meshPart.TextureID or meshPart.TextureId
 		else
 			handle.TextureId = meshPart:IsA('MeshPart') and meshPart.TextureID or meshPart.TextureId
+		end
+		if handle:IsA('MeshPart') and meshPart:IsA('MeshPart') then
+			handle.Size = meshPart.Size
+		elseif handle:IsA('SpecialMesh') and meshPart:IsA('SpecialMesh') then
+			handle.Scale = meshPart.Scale
+			handle.Offset = meshPart.Offset
 		end
 		appliedParts += 1
 	end
@@ -5994,6 +6003,12 @@ run(function()
 					handle.TextureID = data.TextureId
 				else
 					handle.TextureId = data.TextureId
+				end
+				if handle:IsA('MeshPart') and data.Size then
+					handle.Size = data.Size
+				elseif handle:IsA('SpecialMesh') then
+					if data.Scale then handle.Scale = data.Scale end
+					if data.Offset then handle.Offset = data.Offset end
 				end
 			end
 		end
