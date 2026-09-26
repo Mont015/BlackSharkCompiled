@@ -5842,177 +5842,140 @@ run(function()
 
 	local loadedPacks = {}
 	local activeConnections = {}
-	local originalData = {}
-	local appliedParts = 0
+	local originalHandles = {}
+	local appliedClones = {}
 
 	local function loadPack(name)
 		if loadedPacks[name] then return loadedPacks[name] end
 		local id = packIds[name]
 		if not id then return nil end
-		local suc, result = pcall(function()
-			return game:GetObjects('rbxassetid://'..id)
-		end)
+		local suc, result = pcall(game.GetObjects, game, 'rbxassetid://'..id)
 		if not suc or not result or not result[1] then
 			vape:CreateNotification('TexturePack', 'Failed to load '..name, 5, 'alert')
 			return nil
 		end
-		pcall(function()
-			result[1].Parent = game:GetService('ReplicatedStorage')
-		end)
-		-- Keep the asset root: pack models are not all direct children of one folder.
+		pcall(function() result[1].Parent = game:GetService('ReplicatedStorage') end)
 		loadedPacks[name] = result[1]
 		return result[1]
 	end
 
-	local function findMeshTarget(object)
-		if not object then return nil end
-		if object:IsA('MeshPart') or object:IsA('SpecialMesh') then return object end
-		return object:FindFirstChildWhichIsA('MeshPart', true) or object:FindFirstChildWhichIsA('SpecialMesh', true)
-	end
-
-	local function normalizedName(name)
-		return string.lower((name or ''):gsub('[^%w]', ''))
-	end
-
-	local function findPackItem(packFolder, item, boundary)
-		local current = item
-		while current and current ~= boundary do
-			local wanted = normalizedName(current.Name)
-			for _, candidate in packFolder:GetDescendants() do
-				if normalizedName(candidate.Name) == wanted then
-					return candidate
-				end
-			end
-			current = current.Parent
+	local function getFirstMeshPart(root)
+		if root:IsA('MeshPart') then return root end
+		for _, v in root:GetDescendants() do
+			if v:IsA('MeshPart') then return v end
 		end
 		return nil
 	end
 
-	local function isWeaponPart(item, boundary)
-		local current = item
-		while current and current ~= boundary do
-			local name = normalizedName(current.Name)
-			if name:find('sword', 1, true) or name:find('blade', 1, true) or name:find('dao', 1, true) then
-				return true
-			end
-			current = current.Parent
+	local function removeClone(handle)
+		if appliedClones[handle] then
+			pcall(function() appliedClones[handle]:Destroy() end)
+			appliedClones[handle] = nil
 		end
-		return false
 	end
 
-	local function firstPackMesh(packFolder)
-		for _, candidate in packFolder:GetDescendants() do
-			local mesh = findMeshTarget(candidate)
-			if mesh then return mesh end
-		end
-		return nil
+	local function restoreHandle(handle)
+		if not handle or not handle.Parent then return end
+		local data = originalHandles[handle]
+		if not data then return end
+		handle.Transparency = data.Transparency
+		removeClone(handle)
+		originalHandles[handle] = nil
 	end
 
-	local function applyToItem(item, packFolder, boundary)
-		local handle = findMeshTarget(item:FindFirstChild('Handle', true)) or findMeshTarget(item)
-		if not handle then return end
-
-		local packItem = findPackItem(packFolder, item, boundary) or findPackItem(packFolder, handle, boundary)
-		local meshPart = findMeshTarget(packItem)
-		if not meshPart and isWeaponPart(item, boundary) then
-			meshPart = firstPackMesh(packFolder)
-		end
+	local function applyToHandle(handle, meshPart)
+		if not handle or not handle.Parent then return end
 		if not meshPart then return end
 
-		if not originalData[handle] then
-			originalData[handle] = {
-				MeshId = handle.MeshId,
-				TextureId = handle:IsA('MeshPart') and handle.TextureID or handle.TextureId,
-				Size = handle:IsA('MeshPart') and handle.Size or nil,
-				Scale = handle:IsA('SpecialMesh') and handle.Scale or nil,
-				Offset = handle:IsA('SpecialMesh') and handle.Offset or nil
-			}
+		if not originalHandles[handle] then
+			originalHandles[handle] = {Transparency = handle.Transparency}
 		end
 
-		handle.MeshId = meshPart.MeshId
-		if handle:IsA('MeshPart') then
-			handle.TextureID = meshPart:IsA('MeshPart') and meshPart.TextureID or meshPart.TextureId
-		else
-			handle.TextureId = meshPart:IsA('MeshPart') and meshPart.TextureID or meshPart.TextureId
-		end
-		if handle:IsA('MeshPart') and meshPart:IsA('MeshPart') then
-			handle.Size = meshPart.Size
-		elseif handle:IsA('SpecialMesh') and meshPart:IsA('SpecialMesh') then
-			handle.Scale = meshPart.Scale
-			handle.Offset = meshPart.Offset
-		end
-		appliedParts += 1
+		removeClone(handle)
+		handle.Transparency = 1
+
+		local clone = meshPart:Clone()
+		clone.Name = 'BSTexture'
+		clone.Anchored = false
+		clone.CanCollide = false
+		clone.CanQuery = false
+		clone.CastShadow = false
+		clone.Massless = true
+		clone.Transparency = 0
+		clone.Size = handle.Size
+		clone.CFrame = handle.CFrame
+		clone.Parent = handle.Parent
+
+		local weld = Instance.new('WeldConstraint')
+		weld.Part0 = handle
+		weld.Part1 = clone
+		weld.Parent = clone
+
+		appliedClones[handle] = clone
 	end
 
-	local function applyPack(packFolder)
-		appliedParts = 0
-		local function applyContainer(container, boundary)
-			applyToItem(container, packFolder, boundary)
-			for _, item in container:GetDescendants() do
-				applyToItem(item, packFolder, boundary)
+	local function applyToViewmodel(vm, meshPart)
+		if not vm or not meshPart then return end
+
+		for _, child in vm:GetChildren() do
+			if child:IsA('Accessory') or child:IsA('Tool') or child:IsA('Model') then
+				local handle = child:FindFirstChild('Handle')
+				if handle and handle:IsA('MeshPart') then
+					applyToHandle(handle, meshPart)
+				end
 			end
 		end
 
-		local function applyViewmodel(vm)
-			applyContainer(vm, vm)
-			table.insert(activeConnections, vm.ChildAdded:Connect(function(item)
-				task.wait(0.1)
-				applyContainer(item, vm)
-			end))
+		local conn = vm.ChildAdded:Connect(function(child)
+			task.wait(0.08)
+			if not TexturePacks.Enabled then return end
+			if child:IsA('Accessory') or child:IsA('Tool') or child:IsA('Model') then
+				local handle = child:FindFirstChild('Handle')
+				if handle and handle:IsA('MeshPart') then
+					applyToHandle(handle, meshPart)
+				end
+			end
+		end)
+		table.insert(activeConnections, conn)
+	end
+
+	local function applyPack(packRoot)
+		local meshPart = getFirstMeshPart(packRoot)
+		if not meshPart then
+			vape:CreateNotification('TexturePack', 'No mesh found in pack', 5, 'alert')
+			return
 		end
 
 		local camera = workspace.CurrentCamera or gameCamera
-		if camera then
-			local vm = camera:FindFirstChild('Viewmodel')
-			if vm then applyViewmodel(vm) end
-			table.insert(activeConnections, camera.ChildAdded:Connect(function(child)
-				if child.Name == 'Viewmodel' then
-					task.wait(0.05)
-					applyViewmodel(child)
-				end
-			end))
-		end
+		local vm = camera and camera:FindFirstChild('Viewmodel')
+		applyToViewmodel(vm, meshPart)
 
-		if lplr.Character then
-			applyContainer(lplr.Character, lplr.Character)
-		end
-
-		local charConn = lplr.CharacterAdded:Connect(function(char)
-			task.wait(0.3)
-			applyContainer(char, char)
-		end)
-		table.insert(activeConnections, charConn)
-
-		task.delay(0.5, function()
-			if TexturePacks.Enabled and appliedParts == 0 then
-				vape:CreateNotification('TexturePack', 'No matching weapon part found for '..PackSelect.Value, 5, 'alert')
+		local camConn = camera.ChildAdded:Connect(function(child)
+			if child.Name == 'Viewmodel' then
+				task.wait(0.05)
+				applyToViewmodel(child, meshPart)
 			end
 		end)
+		table.insert(activeConnections, camConn)
+
+		local charConn = lplr.CharacterAdded:Connect(function()
+			task.wait(0.3)
+			local newVm = camera and camera:FindFirstChild('Viewmodel')
+			if newVm then applyToViewmodel(newVm, meshPart) end
+		end)
+		table.insert(activeConnections, charConn)
 	end
 
 	local function clearAll()
 		for _, conn in activeConnections do
-			conn:Disconnect()
+			pcall(function() conn:Disconnect() end)
 		end
 		table.clear(activeConnections)
-
-		for handle, data in originalData do
-			if handle and handle.Parent then
-				handle.MeshId = data.MeshId
-				if handle:IsA('MeshPart') then
-					handle.TextureID = data.TextureId
-				else
-					handle.TextureId = data.TextureId
-				end
-				if handle:IsA('MeshPart') and data.Size then
-					handle.Size = data.Size
-				elseif handle:IsA('SpecialMesh') then
-					if data.Scale then handle.Scale = data.Scale end
-					if data.Offset then handle.Offset = data.Offset end
-				end
-			end
+		for handle in originalHandles do
+			restoreHandle(handle)
 		end
-		table.clear(originalData)
+		table.clear(originalHandles)
+		table.clear(appliedClones)
 	end
 
 	TexturePacks = vape.Categories.Render:CreateModule({
@@ -6020,9 +5983,7 @@ run(function()
 		Function = function(callback)
 			if callback then
 				local pack = loadPack(PackSelect.Value)
-				if pack then
-					applyPack(pack)
-				end
+				if pack then applyPack(pack) end
 			else
 				clearAll()
 			end
@@ -6038,16 +5999,11 @@ run(function()
 			if TexturePacks.Enabled then
 				clearAll()
 				local pack = loadPack(PackSelect.Value)
-				if pack then
-					applyPack(pack)
-				end
+				if pack then applyPack(pack) end
 			end
 		end
 	})
 end)
-
-
-
 
 run(function()
 	local RavenTP
