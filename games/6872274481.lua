@@ -5843,6 +5843,7 @@ run(function()
 	local loadedPacks = {}
 	local activeConnections = {}
 	local originalData = {}
+	local appliedParts = 0
 
 	local function loadPack(name)
 		if loadedPacks[name] then return loadedPacks[name] end
@@ -5869,11 +5870,29 @@ run(function()
 		return object:FindFirstChildWhichIsA('MeshPart', true) or object:FindFirstChildWhichIsA('SpecialMesh', true)
 	end
 
-	local function applyToItem(item, packFolder)
+	local function normalizedName(name)
+		return string.lower((name or ''):gsub('[^%w]', ''))
+	end
+
+	local function findPackItem(packFolder, item, boundary)
+		local current = item
+		while current and current ~= boundary do
+			local wanted = normalizedName(current.Name)
+			for _, candidate in packFolder:GetDescendants() do
+				if normalizedName(candidate.Name) == wanted then
+					return candidate
+				end
+			end
+			current = current.Parent
+		end
+		return nil
+	end
+
+	local function applyToItem(item, packFolder, boundary)
 		local handle = findMeshTarget(item:FindFirstChild('Handle', true)) or findMeshTarget(item)
 		if not handle then return end
 
-		local packItem = packFolder:FindFirstChild(item.Name, true) or packFolder:FindFirstChild(handle.Name, true)
+		local packItem = findPackItem(packFolder, item, boundary) or findPackItem(packFolder, handle, boundary)
 		local meshPart = findMeshTarget(packItem)
 		if not meshPart then return end
 
@@ -5890,16 +5909,23 @@ run(function()
 		else
 			handle.TextureId = meshPart:IsA('MeshPart') and meshPart.TextureID or meshPart.TextureId
 		end
+		appliedParts += 1
 	end
 
 	local function applyPack(packFolder)
-		local function applyViewmodel(vm)
-			for _, item in vm:GetChildren() do
-				applyToItem(item, packFolder)
+		appliedParts = 0
+		local function applyContainer(container, boundary)
+			applyToItem(container, packFolder, boundary)
+			for _, item in container:GetDescendants() do
+				applyToItem(item, packFolder, boundary)
 			end
+		end
+
+		local function applyViewmodel(vm)
+			applyContainer(vm, vm)
 			table.insert(activeConnections, vm.ChildAdded:Connect(function(item)
-				task.wait(0.05)
-				applyToItem(item, packFolder)
+				task.wait(0.1)
+				applyContainer(item, vm)
 			end))
 		end
 
@@ -5916,18 +5942,20 @@ run(function()
 		end
 
 		if lplr.Character then
-			for _, item in lplr.Character:GetChildren() do
-				applyToItem(item, packFolder)
-			end
+			applyContainer(lplr.Character, lplr.Character)
 		end
 
 		local charConn = lplr.CharacterAdded:Connect(function(char)
 			task.wait(0.3)
-			for _, item in char:GetChildren() do
-				applyToItem(item, packFolder)
-			end
+			applyContainer(char, char)
 		end)
 		table.insert(activeConnections, charConn)
+
+		task.delay(0.5, function()
+			if TexturePacks.Enabled and appliedParts == 0 then
+				vape:CreateNotification('TexturePack', 'No matching weapon part found for '..PackSelect.Value, 5, 'alert')
+			end
+		end)
 	end
 
 	local function clearAll()
