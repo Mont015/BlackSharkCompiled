@@ -2646,6 +2646,7 @@ run(function()
 	local SwingRange
 	local AttackRange
 	local UpdateRate
+	local HitRate
 	local AngleSlider
 	local MaxTargets
 	local Mouse
@@ -2669,7 +2670,6 @@ run(function()
 	local AttackRemote
 	local LastManualSwing = 0
 	local NextAttack = 0
-	local HitInterval = 2 / 7
 	local AttackIndex = 1
 	local PrimaryTarget
 	local AnimationToken = 0
@@ -2980,7 +2980,7 @@ run(function()
 							local sent = attackTarget(sword, root, target)
 							if sent then
 								AttackIndex = (targetIndex % #attackable) + 1
-								NextAttack = now + HitInterval
+								NextAttack = now + (10 / HitRate.Value)
 							else
 								NextAttack = now + 0.1
 							end
@@ -2992,13 +2992,11 @@ run(function()
 						end
 					end
 
-					task.wait(1 / math.max(UpdateRate.Value, 1))
-
-if Face.Enabled and primary and primary.RootPart and primary.RootPart.Parent and root and root.Parent then
-    local position = primary.RootPart.Position
-    root.CFrame = CFrame.lookAt(root.Position, Vector3.new(position.X, root.Position.Y + 0.001, position.Z))
-end
-
+					updateVisuals(targets)
+					if Face.Enabled and primary and primary.RootPart and primary.RootPart.Parent and root and root.Parent then
+						local position = primary.RootPart.Position
+						root.CFrame = CFrame.lookAt(root.Position, Vector3.new(position.X, root.Position.Y + 0.001, position.Z))
+					end
 					task.wait(1 / math.max(UpdateRate.Value, 1))
 				until not Killaura.Enabled
 			else
@@ -3072,6 +3070,13 @@ end
 		Max = 240,
 		Default = 120,
 		Suffix = 'hz'
+	})
+	HitRate = Killaura:CreateSlider({
+		Name = 'Hit rate',
+		Min = 1,
+		Max = 45,
+		Default = 35,
+		Suffix = 'hits / 10s'
 	})
 	MaxTargets = Killaura:CreateSlider({
 		Name = 'Max targets',
