@@ -1897,6 +1897,17 @@ run(function()
 			table.insert(directions, away)
 			table.insert(directions, left)
 			table.insert(directions, right)
+		elseif Mode.Value == 'Behind' then
+			table.insert(directions, forward)
+			table.insert(directions, left)
+			table.insert(directions, right)
+			table.insert(directions, away)
+		elseif Mode.Value == 'Auto' and flat.Magnitude <= 12 then
+			table.insert(directions, forward)
+			strafeSide = -strafeSide
+			table.insert(directions, strafeSide == 1 and left or right)
+			table.insert(directions, strafeSide == 1 and right or left)
+			table.insert(directions, away)
 		else
 			strafeSide = -strafeSide
 			if strafeSide == 1 then
@@ -2036,7 +2047,7 @@ run(function()
 					local speed = math.max(ResponseSpeed.Value, getSpeed()) * comboMultiplier
 
 					local vertical = root.AssemblyLinearVelocity.Y
-					if Mode.Value == 'Hop' then
+					if Mode.Value == 'Hop' or Mode.Value == 'Up' then
 						vertical = math.max(vertical, HopHeight.Value * comboMultiplier)
 					end
 
@@ -2060,8 +2071,9 @@ run(function()
 
 	Mode = AntiHit:CreateDropdown({
 		Name = 'Mode',
-		List = {'Strafe', 'Retreat', 'Hop'},
-		Default = 'Strafe'
+		List = {'Auto', 'Side', 'Behind', 'Up', 'Retreat', 'Hop'},
+		Default = 'Auto',
+		Tooltip = 'Auto - Goes behind close attackers, otherwise dodges sideways\nSide - Dodges left or right\nBehind - Moves through the attacker\nUp - Side dodge with a short upward escape'
 	})
 	TriggerRange = AntiHit:CreateSlider({
 		Name = 'Trigger range',
