@@ -48,11 +48,9 @@ if not shared.VapeDeveloper then
 	local commit = success and response:match('"sha"%s*:%s*"([0-9a-f]+)"') or nil
 	commit = commit and #commit == 40 and commit or 'main'
 
-	if commit == 'main' or (isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt') or '') ~= commit then
-		wipeFolder('newvape')
-		wipeFolder('newvape/games')
-		wipeFolder('newvape/guis')
-		wipeFolder('newvape/libraries')
+	if commit ~= 'main' and (isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt') or '') ~= commit then
+		pcall(delfile, 'newvape/main.lua')
+		pcall(delfile, 'newvape/games/'..game.PlaceId..'.lua')
 	end
 
 	if (isfile('newvape/profiles/asset.txt') and readfile('newvape/profiles/asset.txt') or '') ~= assetVer then
