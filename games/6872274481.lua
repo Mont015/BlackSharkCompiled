@@ -5888,12 +5888,35 @@ run(function()
 		return nil
 	end
 
+	local function isWeaponPart(item, boundary)
+		local current = item
+		while current and current ~= boundary do
+			local name = normalizedName(current.Name)
+			if name:find('sword', 1, true) or name:find('blade', 1, true) or name:find('dao', 1, true) then
+				return true
+			end
+			current = current.Parent
+		end
+		return false
+	end
+
+	local function firstPackMesh(packFolder)
+		for _, candidate in packFolder:GetDescendants() do
+			local mesh = findMeshTarget(candidate)
+			if mesh then return mesh end
+		end
+		return nil
+	end
+
 	local function applyToItem(item, packFolder, boundary)
 		local handle = findMeshTarget(item:FindFirstChild('Handle', true)) or findMeshTarget(item)
 		if not handle then return end
 
 		local packItem = findPackItem(packFolder, item, boundary) or findPackItem(packFolder, handle, boundary)
 		local meshPart = findMeshTarget(packItem)
+		if not meshPart and isWeaponPart(item, boundary) then
+			meshPart = firstPackMesh(packFolder)
+		end
 		if not meshPart then return end
 
 		if not originalData[handle] then
