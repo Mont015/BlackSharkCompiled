@@ -2649,7 +2649,6 @@ run(function()
 	local SwingRange
 	local AttackRange
 	local UpdateRate
-	local HitRate
 	local AngleSlider
 	local MaxTargets
 	local Mouse
@@ -2673,6 +2672,7 @@ run(function()
 	local AttackRemote
 	local LastManualSwing = 0
 	local NextAttack = 0
+	local HitInterval = 2 / 7
 	local AttackIndex = 1
 	local PrimaryTarget
 	local AnimationToken = 0
@@ -2983,7 +2983,7 @@ run(function()
 							local sent = attackTarget(sword, root, target)
 							if sent then
 								AttackIndex = (targetIndex % #attackable) + 1
-								NextAttack = now + (10 / HitRate.Value)
+								NextAttack = now + HitInterval
 							else
 								NextAttack = now + 0.1
 							end
@@ -3073,13 +3073,6 @@ run(function()
 		Max = 240,
 		Default = 120,
 		Suffix = 'hz'
-	})
-	HitRate = Killaura:CreateSlider({
-		Name = 'Hit rate',
-		Min = 1,
-		Max = 45,
-		Default = 35,
-		Suffix = 'hits / 10s'
 	})
 	MaxTargets = Killaura:CreateSlider({
 		Name = 'Max targets',
