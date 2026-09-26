@@ -2696,15 +2696,10 @@ run(function()
 	end
 
 	local function getAttackRemote()
-		if AttackRemote then
-			return AttackRemote
-		end
-
 		local success, remote = pcall(function()
 			return bedwars.Client:Get(remotes.AttackEntity)
 		end)
-		AttackRemote = success and remote or nil
-		return AttackRemote
+		return success and remote or nil
 	end
 
 	local function sendAttack(attackTable)
@@ -2722,9 +2717,6 @@ run(function()
 				error('Attack remote is unavailable')
 			end
 		end)
-		if not success then
-			AttackRemote = nil
-		end
 		return success
 	end
 
@@ -5852,34 +5844,41 @@ run(function()
 			vape:CreateNotification('TexturePack', 'Failed to load '..name, 5, 'alert')
 			return nil
 		end
-		result[1].Parent = game:GetService('ReplicatedStorage')
+		pcall(function()
+			result[1].Parent = game:GetService('ReplicatedStorage')
+		end)
 		-- Keep the asset root: pack models are not all direct children of one folder.
 		loadedPacks[name] = result[1]
 		return result[1]
 	end
 
-	local function findMeshPart(object)
-		if object and object:IsA('MeshPart') then return object end
-		return object and object:FindFirstChildWhichIsA('MeshPart', true)
+	local function findMeshTarget(object)
+		if not object then return nil end
+		if object:IsA('MeshPart') or object:IsA('SpecialMesh') then return object end
+		return object:FindFirstChildWhichIsA('MeshPart', true) or object:FindFirstChildWhichIsA('SpecialMesh', true)
 	end
 
 	local function applyToItem(item, packFolder)
-		local handle = findMeshPart(item:FindFirstChild('Handle', true)) or findMeshPart(item)
+		local handle = findMeshTarget(item:FindFirstChild('Handle', true)) or findMeshTarget(item)
 		if not handle then return end
 
 		local packItem = packFolder:FindFirstChild(item.Name, true) or packFolder:FindFirstChild(handle.Name, true)
-		local meshPart = findMeshPart(packItem)
+		local meshPart = findMeshTarget(packItem)
 		if not meshPart then return end
 
 		if not originalData[handle] then
 			originalData[handle] = {
 				MeshId = handle.MeshId,
-				TextureID = handle.TextureID
+				TextureId = handle:IsA('MeshPart') and handle.TextureID or handle.TextureId
 			}
 		end
 
 		handle.MeshId = meshPart.MeshId
-		handle.TextureID = meshPart.TextureID
+		if handle:IsA('MeshPart') then
+			handle.TextureID = meshPart:IsA('MeshPart') and meshPart.TextureID or meshPart.TextureId
+		else
+			handle.TextureId = meshPart:IsA('MeshPart') and meshPart.TextureID or meshPart.TextureId
+		end
 	end
 
 	local function applyPack(packFolder)
@@ -5929,7 +5928,11 @@ run(function()
 		for handle, data in originalData do
 			if handle and handle.Parent then
 				handle.MeshId = data.MeshId
-				handle.TextureID = data.TextureID
+				if handle:IsA('MeshPart') then
+					handle.TextureID = data.TextureId
+				else
+					handle.TextureId = data.TextureId
+				end
 			end
 		end
 		table.clear(originalData)
@@ -5953,6 +5956,7 @@ run(function()
 	PackSelect = TexturePacks:CreateDropdown({
 		Name = 'Pack',
 		List = {'Pack1', 'Pack2', 'Pack3', 'Pack4'},
+		Default = 'Pack1',
 		Function = function()
 			if TexturePacks.Enabled then
 				clearAll()
