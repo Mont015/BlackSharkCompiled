@@ -5863,6 +5863,14 @@ run(function()
 		name = normalizedName(name)
 		return nameMap[name] ~= nil or name:find('sword', 1, true) ~= nil or name:find('blade', 1, true) ~= nil or name:find('dao', 1, true) ~= nil
 	end
+	local function belongsToWeapon(object, root)
+		local current = object
+		while current and current ~= root do
+			if isWeaponName(current.Name) then return true end
+			current = current.Parent
+		end
+		return false
+	end
 	local function getMeshTarget(object)
 		if not object then return nil end
 		if object:IsA('MeshPart') or object:IsA('SpecialMesh') then return object end
@@ -5878,20 +5886,22 @@ run(function()
 			return nil
 		end
 		pcall(function() result[1].Parent = game:GetService('ReplicatedStorage') end)
-		local index = {Parts = {}, Fallback = nil}
+		local index = {Parts = {}, Fallback = nil, AnyMesh = nil}
 		for _, v in result[1]:GetDescendants() do
 			if v:IsA('MeshPart') or v:IsA('SpecialMesh') then
+				index.AnyMesh = index.AnyMesh or v
 				index.Parts[normalizedName(v.Name)] = v
 				local parent = v.Parent
 				while parent and parent ~= result[1] do
 					index.Parts[normalizedName(parent.Name)] = v
 					parent = parent.Parent
 				end
-				if not index.Fallback or isWeaponName(v.Name) then
+				if belongsToWeapon(v, result[1]) then
 					index.Fallback = v
 				end
 			end
 		end
+		index.Fallback = index.Fallback or index.AnyMesh
 		loadedPacks[name] = index
 		return index
 	end
@@ -5917,6 +5927,7 @@ run(function()
 			originalHandles[handle] = {
 				MeshId = handle.MeshId,
 				TextureId = handle:IsA('MeshPart') and handle.TextureID or handle.TextureId,
+				Size = handle:IsA('MeshPart') and handle.Size or nil,
 			}
 		end
 		handle.MeshId = packPart.MeshId
@@ -5925,6 +5936,12 @@ run(function()
 			handle.TextureID = texture
 		else
 			handle.TextureId = texture
+		end
+		if handle:IsA('MeshPart') and packPart:IsA('MeshPart') then
+			local size = packPart.Size
+			if size.X > 0 and size.Y > 0 and size.Z > 0 and size.Magnitude < 30 then
+				handle.Size = size
+			end
 		end
 	end
 	local function applyToViewmodel(vm, packIndex)
@@ -5961,6 +5978,9 @@ run(function()
 					handle.TextureID = data.TextureId
 				else
 					handle.TextureId = data.TextureId
+				end
+				if handle:IsA('MeshPart') and data.Size then
+					handle.Size = data.Size
 				end
 			end
 		end
