@@ -2684,6 +2684,8 @@ run(function()
 	local AttackRemote
 	local LastManualSwing = 0
 	local NextAttack = 0
+	-- 35 attacks per ten seconds. Keep this exact rate; the scheduler below
+	-- avoids losing an attack to normal frame timing rather than sending faster.
 	local HitInterval = 2 / 7
 	local AttackIndex = 1
 	local PrimaryTarget
@@ -2998,7 +3000,14 @@ run(function()
 							local sent = attackTarget(sword, root, target)
 							if sent then
 								AttackIndex = (targetIndex % #attackable) + 1
-								NextAttack = now + HitInterval
+								-- Advance from the prior scheduled attack rather than the
+								-- current frame. This keeps a stable 35-hit cadence instead
+								-- of gradually slipping behind from frame jitter.
+								NextAttack = NextAttack == 0 and now or NextAttack
+								NextAttack += HitInterval
+								if NextAttack < now - HitInterval then
+									NextAttack = now + HitInterval
+								end
 							else
 								NextAttack = now + 0.1
 							end
@@ -3086,7 +3095,7 @@ run(function()
 		Name = 'Update rate',
 		Min = 1,
 		Max = 240,
-		Default = 120,
+		Default = 240,
 		Suffix = 'hz'
 	})
 	MaxTargets = Killaura:CreateSlider({
