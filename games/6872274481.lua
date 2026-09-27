@@ -5886,9 +5886,10 @@ run(function()
 			return nil
 		end
 		pcall(function() result[1].Parent = game:GetService('ReplicatedStorage') end)
-		local index = {Parts = {}, Fallback = nil, AnyMesh = nil}
+		local index = {Parts = {}, Fallback = nil, AnyMesh = nil, MeshCount = 0}
 		for _, v in result[1]:GetDescendants() do
 			if v:IsA('MeshPart') or v:IsA('SpecialMesh') then
+				index.MeshCount += 1
 				index.AnyMesh = index.AnyMesh or v
 				index.Parts[normalizedName(v.Name)] = v
 				local parent = v.Parent
@@ -5901,7 +5902,11 @@ run(function()
 				end
 			end
 		end
-		index.Fallback = index.Fallback or index.AnyMesh
+		-- An unnamed one-mesh pack is safe to use as a fallback. Packs with
+		-- multiple meshes must match the held weapon by name instead.
+		if not index.Fallback and index.MeshCount == 1 then
+			index.Fallback = index.AnyMesh
+		end
 		loadedPacks[name] = index
 		return index
 	end
@@ -5927,7 +5932,6 @@ run(function()
 			originalHandles[handle] = {
 				MeshId = handle.MeshId,
 				TextureId = handle:IsA('MeshPart') and handle.TextureID or handle.TextureId,
-				Size = handle:IsA('MeshPart') and handle.Size or nil,
 			}
 		end
 		handle.MeshId = packPart.MeshId
@@ -5937,27 +5941,28 @@ run(function()
 		else
 			handle.TextureId = texture
 		end
-		if handle:IsA('MeshPart') and packPart:IsA('MeshPart') then
-			local size = packPart.Size
-			if size.X > 0 and size.Y > 0 and size.Z > 0 and size.Magnitude < 30 then
-				handle.Size = size
-			end
-		end
 	end
 	local function applyToViewmodel(vm, packIndex)
 		if not vm then return end
+		local heldTool = store.hand and store.hand.tool
+		local heldName = heldTool and normalizedName(heldTool.Name)
+		if not heldName then return end
+		local function isHeldWeapon(item)
+			local itemName = normalizedName(item.Name)
+			return itemName == heldName or itemName:find(heldName, 1, true) ~= nil or heldName:find(itemName, 1, true) ~= nil
+		end
 		local function applyItem(item)
-			if not isWeaponName(item.Name) then return end
+			if not isHeldWeapon(item) then return false end
 			local handle = getMeshTarget(item:FindFirstChild('Handle', true)) or getMeshTarget(item)
 			local packPart = getPackPart(packIndex, item)
 			if handle and packPart then
-				-- Keep the game mesh's size, local offset and joints unchanged so
-				-- the pack stays in the original BedWars hand position.
 				applyToHandle(handle, packPart)
+				return true
 			end
+			return false
 		end
 		for _, child in vm:GetChildren() do
-			applyItem(child)
+			if applyItem(child) then break end
 		end
 		local conn = vm.ChildAdded:Connect(function(child)
 			task.wait(0.08)
@@ -5965,6 +5970,20 @@ run(function()
 			applyItem(child)
 		end)
 		table.insert(activeConnections, conn)
+	end
+	local function applyToCharacter(character, packIndex)
+		local heldTool = store.hand and store.hand.tool
+		local heldName = heldTool and normalizedName(heldTool.Name)
+		if not character or not heldName then return end
+		for _, item in character:GetChildren() do
+			local itemName = normalizedName(item.Name)
+			if itemName == heldName or itemName:find(heldName, 1, true) ~= nil then
+				local handle = getMeshTarget(item:FindFirstChild('Handle', true)) or getMeshTarget(item)
+				local packPart = getPackPart(packIndex, item)
+				if handle and packPart then applyToHandle(handle, packPart) end
+				break
+			end
+		end
 	end
 	local function clearAll()
 		for _, conn in activeConnections do
@@ -5979,9 +5998,6 @@ run(function()
 				else
 					handle.TextureId = data.TextureId
 				end
-				if handle:IsA('MeshPart') and data.Size then
-					handle.Size = data.Size
-				end
 			end
 		end
 		table.clear(originalHandles)
@@ -5991,6 +6007,7 @@ run(function()
 		if not camera then return end
 		local vm = camera and camera:FindFirstChild('Viewmodel')
 		applyToViewmodel(vm, packIndex)
+		applyToCharacter(lplr.Character, packIndex)
 		local camConn = camera.ChildAdded:Connect(function(child)
 			if child.Name == 'Viewmodel' then
 				task.wait(0.05)
@@ -5998,9 +6015,16 @@ run(function()
 			end
 		end)
 		table.insert(activeConnections, camConn)
-		-- The camera's Viewmodel listener handles respawns and weapon changes.
-		-- Do not modify the character model: that is what caused third-person
-		-- weapons to appear detached or incorrectly rotated.
+		table.insert(activeConnections, lplr.CharacterAdded:Connect(function(character)
+			task.wait(0.2)
+			if TexturePacks.Enabled then applyToCharacter(character, packIndex) end
+		end))
+		if lplr.Character then
+			table.insert(activeConnections, lplr.Character.ChildAdded:Connect(function()
+				task.wait(0.08)
+				if TexturePacks.Enabled then applyToCharacter(lplr.Character, packIndex) end
+			end))
+		end
 	end
 	TexturePacks = vape.Categories.Render:CreateModule({
 		Name = 'TexturePack',
