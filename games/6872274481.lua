@@ -2909,9 +2909,6 @@ run(function()
 			AnimationToken += 1
 			local animationToken = AnimationToken
 			if callback then
-				-- A fresh remote on enable avoids cross-match stale state, while
-				-- caching during combat keeps the hit loop at full speed.
-				AttackRemote = nil
 				Killaura:Clean(inputService.InputBegan:Connect(function(input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						LastManualSwing = tick()
@@ -3000,14 +2997,7 @@ run(function()
 							local sent = attackTarget(sword, root, target)
 							if sent then
 								AttackIndex = (targetIndex % #attackable) + 1
-								-- Advance from the prior scheduled attack rather than the
-								-- current frame. This keeps a stable 35-hit cadence instead
-								-- of gradually slipping behind from frame jitter.
-								NextAttack = NextAttack == 0 and now or NextAttack
-								NextAttack += HitInterval
-								if NextAttack < now - HitInterval then
-									NextAttack = now + HitInterval
-								end
+								NextAttack = now + HitInterval
 							else
 								NextAttack = now + 0.1
 							end
@@ -3095,7 +3085,7 @@ run(function()
 		Name = 'Update rate',
 		Min = 1,
 		Max = 240,
-		Default = 240,
+		Default = 120,
 		Suffix = 'hz'
 	})
 	MaxTargets = Killaura:CreateSlider({
