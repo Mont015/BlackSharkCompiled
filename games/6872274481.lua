@@ -5857,6 +5857,18 @@ run(function()
 	local loadedPacks = {}
 	local activeConnections = {}
 	local originalHandles = {}
+	local function normalizedName(name)
+		return string.lower((name or ''):gsub('[^%w]', ''))
+	end
+	local function isWeaponName(name)
+		name = normalizedName(name)
+		return nameMap[name] ~= nil or name:find('sword', 1, true) ~= nil or name:find('blade', 1, true) ~= nil or name:find('dao', 1, true) ~= nil
+	end
+	local function getMeshTarget(object)
+		if not object then return nil end
+		if object:IsA('MeshPart') or object:IsA('SpecialMesh') then return object end
+		return object:FindFirstChildWhichIsA('MeshPart', true) or object:FindFirstChildWhichIsA('SpecialMesh', true)
+	end
 	local function loadPack(name)
 		if loadedPacks[name] then return loadedPacks[name] end
 		local id = packIds[name]
@@ -5867,64 +5879,74 @@ run(function()
 			return nil
 		end
 		pcall(function() result[1].Parent = game:GetService('ReplicatedStorage') end)
-		local index = {}
+		local index = {Parts = {}, Fallback = nil}
 		for _, v in result[1]:GetDescendants() do
-			if v:IsA('MeshPart') then
-				index[v.Name:lower()] = v
+			if v:IsA('MeshPart') or v:IsA('SpecialMesh') then
+				index.Parts[normalizedName(v.Name)] = v
+				local parent = v.Parent
+				while parent and parent ~= result[1] do
+					index.Parts[normalizedName(parent.Name)] = v
+					parent = parent.Parent
+				end
+				if not index.Fallback or isWeaponName(v.Name) then
+					index.Fallback = v
+				end
 			end
 		end
 		loadedPacks[name] = index
 		return index
 	end
-	local function getPackPart(index, accessoryName)
-		local key = nameMap[accessoryName:lower()]
-		if key then
-			local part = index[key:lower()]
+	local function getPackPart(index, weapon)
+		local current = weapon
+		while current do
+			local rawName = current.Name:lower()
+			local mapped = nameMap[rawName]
+			local part = index.Parts[normalizedName(mapped or rawName)]
 			if part then return part end
-		end
-		for k, v in index do
-			if accessoryName:lower():find(k, 1, true) then
-				return v
+			for name, candidate in index.Parts do
+				if name ~= '' and normalizedName(rawName):find(name, 1, true) then
+					return candidate
+				end
 			end
+			current = current.Parent
 		end
-		return nil
+		return index.Fallback
 	end
 	local function applyToHandle(handle, packPart)
 		if not handle or not handle.Parent or not packPart then return end
 		if not originalHandles[handle] then
 			originalHandles[handle] = {
 				MeshId = handle.MeshId,
-				TextureID = handle.TextureID,
+				TextureId = handle:IsA('MeshPart') and handle.TextureID or handle.TextureId,
 			}
 		end
 		handle.MeshId = packPart.MeshId
-		handle.TextureID = packPart.TextureID
+		local texture = packPart:IsA('MeshPart') and packPart.TextureID or packPart.TextureId
+		if handle:IsA('MeshPart') then
+			handle.TextureID = texture
+		else
+			handle.TextureId = texture
+		end
 	end
 	local function applyToViewmodel(vm, packIndex)
 		if not vm then return end
-		for _, child in vm:GetChildren() do
-			if child:IsA('Accessory') then
-				local handle = child:FindFirstChild('Handle')
-				if handle and handle:IsA('MeshPart') then
-					local packPart = getPackPart(packIndex, child.Name)
-					if packPart then
-						applyToHandle(handle, packPart)
-					end
-				end
+		local function applyItem(item)
+			if not isWeaponName(item.Name) then return end
+			local handle = getMeshTarget(item:FindFirstChild('Handle', true)) or getMeshTarget(item)
+			local packPart = getPackPart(packIndex, item)
+			if handle and packPart then
+				-- Keep the game mesh's size, local offset and joints unchanged so
+				-- the pack stays in the original BedWars hand position.
+				applyToHandle(handle, packPart)
 			end
+		end
+		for _, child in vm:GetChildren() do
+			applyItem(child)
 		end
 		local conn = vm.ChildAdded:Connect(function(child)
 			task.wait(0.08)
 			if not TexturePacks.Enabled then return end
-			if child:IsA('Accessory') then
-				local handle = child:FindFirstChild('Handle')
-				if handle and handle:IsA('MeshPart') then
-					local packPart = getPackPart(packIndex, child.Name)
-					if packPart then
-						applyToHandle(handle, packPart)
-					end
-				end
-			end
+			applyItem(child)
 		end)
 		table.insert(activeConnections, conn)
 	end
@@ -5936,13 +5958,18 @@ run(function()
 		for handle, data in originalHandles do
 			if handle and handle.Parent then
 				handle.MeshId = data.MeshId
-				handle.TextureID = data.TextureID
+				if handle:IsA('MeshPart') then
+					handle.TextureID = data.TextureId
+				else
+					handle.TextureId = data.TextureId
+				end
 			end
 		end
 		table.clear(originalHandles)
 	end
 	local function applyPack(packIndex)
 		local camera = workspace.CurrentCamera or gameCamera
+		if not camera then return end
 		local vm = camera and camera:FindFirstChild('Viewmodel')
 		applyToViewmodel(vm, packIndex)
 		local camConn = camera.ChildAdded:Connect(function(child)
@@ -5952,12 +5979,9 @@ run(function()
 			end
 		end)
 		table.insert(activeConnections, camConn)
-		local charConn = lplr.CharacterAdded:Connect(function()
-			task.wait(0.3)
-			local newVm = camera and camera:FindFirstChild('Viewmodel')
-			if newVm then applyToViewmodel(newVm, packIndex) end
-		end)
-		table.insert(activeConnections, charConn)
+		-- The camera's Viewmodel listener handles respawns and weapon changes.
+		-- Do not modify the character model: that is what caused third-person
+		-- weapons to appear detached or incorrectly rotated.
 	end
 	TexturePacks = vape.Categories.Render:CreateModule({
 		Name = 'TexturePack',
