@@ -552,7 +552,8 @@ end
 function vape:BlurCheck()
 	if self.ThreadFix then
 		setthreadidentity(8)
-		runService:SetRobloxGuiFocused((clickgui.Visible or guiService:GetErrorType() ~= Enum.ConnectionError.OK) and self.Blur.Enabled)
+		-- Whisper is intentionally a sharp dashboard; it never blurs the game.
+		runService:SetRobloxGuiFocused(false)
 	end
 end
 
@@ -676,7 +677,7 @@ function vape:Load(skipgui, profile)
 		guiData = loadJson('newvape/profiles/'..game.GameId..'.gui.txt')
 		if not guiData then
 			guiData = {Categories = {}}
-			self:CreateNotification('Vape', 'Failed to load GUI settings.', 10, 'alert')
+			self:CreateNotification('Whisper', 'Failed to load GUI settings.', 10, 'alert')
 			canSave = false
 		end
 
@@ -708,7 +709,7 @@ function vape:Load(skipgui, profile)
 		local mainData = loadJson('newvape/profiles/'..self.Profile..self.Place..'.txt')
 		if not mainData then
 			mainData = {Categories = {}, Modules = {}, Legit = {}}
-			self:CreateNotification('Vape', 'Failed to load '..self.Profile..' profile.', 10, 'alert')
+			self:CreateNotification('Whisper', 'Failed to load '..self.Profile..' profile.', 10, 'alert')
 			canSave = false
 		end
 
@@ -1088,7 +1089,7 @@ function vape:LoadGUI()
 		Function = function()
 			vape:Uninject()
 		end,
-		Tooltip = 'Removes vape from the current game'
+		Tooltip = 'Removes Whisper from the current game'
 	})
 	
 	general:CreateButton({
@@ -1101,7 +1102,7 @@ function vape:LoadGUI()
 				loadstring(game:HttpGet('https://raw.githubusercontent.com/Mont015/BlackSharkCompiled/'..readfile('newvape/profiles/commit.txt')..'/loader.lua', true))()
 			end
 		end,
-		Tooltip = 'Reloads vape for debugging purposes'
+		Tooltip = 'Reloads Whisper for debugging purposes'
 	})
 	
 	--[[
@@ -1141,7 +1142,7 @@ function vape:LoadGUI()
 		Function = function()
 			vape:BlurCheck()
 		end,
-		Default = true,
+		Default = false,
 		Tooltip = 'Blur the background of the GUI'
 	})
 	
@@ -2790,16 +2791,15 @@ components = {
 		
 		local window = Instance.new('TextButton')
 		window.AutoButtonColor = false
-		window.BackgroundColor3 = uipallet.Main
+		window.AnchorPoint = Vector2.new(0.5, 0.5)
+		window.BackgroundColor3 = Color3.fromRGB(17, 14, 24)
 		window.Name = props.Name..'Category'
-		window.Position = UDim2.fromOffset(236, 60)
-		window.Size = UDim2.fromOffset(220, 41)
+		window.Position = UDim2.new(0.5, -170, 0.5, -200)
+		window.Size = UDim2.fromOffset(560, 400)
 		window.Text = ''
 		window.Visible = false
 		window.Parent = clickgui
-		addBlur(window)
 		addCorner(window)
-		addDragHandler(window)
 		local icon = Instance.new('ImageLabel')
 		icon.BackgroundTransparency = 1
 		icon.Image = props.Icon
@@ -2810,13 +2810,23 @@ components = {
 		local title = Instance.new('TextLabel')
 		title.BackgroundTransparency = 1
 		title.FontFace = uipallet.Font
-		title.Size = UDim2.new(1, -(props.Size.X.Offset > 18 and 40 or 33), 0, 41)
-		title.Position = UDim2.fromOffset(math.abs(title.Size.X.Offset), 0)
+		title.Size = UDim2.new(1, -74, 0, 50)
+		title.Position = UDim2.fromOffset(42, 0)
 		title.Text = props.Name
 		title.TextColor3 = uipallet.Text
-		title.TextSize = 13
+		title.TextSize = 19
 		title.TextXAlignment = Enum.TextXAlignment.Left
 		title.Parent = window
+		local subtitle = Instance.new('TextLabel')
+		subtitle.BackgroundTransparency = 1
+		subtitle.FontFace = uipallet.Font
+		subtitle.Position = UDim2.fromOffset(42, 26)
+		subtitle.Size = UDim2.fromOffset(260, 16)
+		subtitle.Text = 'Configure modules and settings'
+		subtitle.TextColor3 = Color3.fromRGB(155, 140, 178)
+		subtitle.TextSize = 11
+		subtitle.TextXAlignment = Enum.TextXAlignment.Left
+		subtitle.Parent = window
 		local pencilbutton = Instance.new('TextButton')
 		pencilbutton.BackgroundTransparency = 1
 		pencilbutton.Position = UDim2.new(1, -49, 0, 0)
@@ -2862,19 +2872,19 @@ components = {
 		children.BorderSizePixel = 0
 		children.CanvasSize = UDim2.new()
 		children.Name = 'Children'
-		children.Position = UDim2.fromOffset(0, 37)
+		children.Position = UDim2.fromOffset(16, 50)
 		children.ScrollBarThickness = 2
 		children.ScrollBarImageTransparency = 0.75
-		children.Size = UDim2.new(1, 0, 1, -41)
-		children.Visible = false
+		children.Size = UDim2.new(1, -32, 1, -66)
+		children.Visible = true
 		children.Parent = window
 		local divider = Instance.new('Frame')
 		divider.BackgroundColor3 = Color3.new(1, 1, 1)
 		divider.BackgroundTransparency = 0.928
 		divider.BorderSizePixel = 0
-		divider.Position = UDim2.fromOffset(0, 37)
-		divider.Size = UDim2.new(1, 0, 0, 1)
-		divider.Visible = false
+		divider.Position = UDim2.fromOffset(16, 49)
+		divider.Size = UDim2.new(1, -32, 0, 1)
+		divider.Visible = true
 		divider.Parent = window
 		local stroke = Instance.new('UIStroke')
 		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -2889,11 +2899,11 @@ components = {
 		function component:Color(hue, sat, val, isRainbow) end
 		
 		function component:Expand()
-			self.Expanded = not self.Expanded
-			children.Visible = self.Expanded
-			arrow.Rotation = self.Expanded and 0 or 180
-			window.Size = UDim2.fromOffset(220, self.Expanded and math.min(41 + windowlist.AbsoluteContentSize.Y / scale.Scale, 601) or 41)
-			divider.Visible = children.CanvasPosition.Y > 10 and children.Visible
+			self.Expanded = true
+			children.Visible = true
+			arrow.Rotation = 0
+			window.Size = UDim2.fromOffset(560, 400)
+			divider.Visible = true
 		end
 		
 		function component:Load(data)
@@ -2901,13 +2911,7 @@ components = {
 				self.Button:Toggle()
 			end
 		
-			if data.Expanded then
-				self:Expand()
-			end
-		
-			if data.Position then
-				window.Position = UDim2.fromOffset(data.Position.X, data.Position.Y)
-			end
+			self:Expand()
 		end
 		
 		function component:Save(data)
@@ -3025,9 +3029,7 @@ components = {
 			end
 		
 			children.CanvasSize = UDim2.fromOffset(0, windowlist.AbsoluteContentSize.Y / scale.Scale)
-			if component.Expanded then
-				window.Size = UDim2.fromOffset(220, math.min(41 + windowlist.AbsoluteContentSize.Y / scale.Scale, 601))
-			end
+			window.Size = UDim2.fromOffset(560, 400)
 		end)
 		
 		component.Button = vape.Categories.Main:CreateGUIButton({
@@ -3502,9 +3504,8 @@ components = {
 				end
 			end
 		
-			if data.Position then
-				window.Position = UDim2.fromOffset(data.Position.X, data.Position.Y)
-			end
+			-- The centered dashboard does not restore the old draggable layout.
+			window.Position = UDim2.new(0.5, 0, 0.5, 0)
 		end
 		
 		function component:Save(data)
@@ -4309,15 +4310,21 @@ components = {
 		
 		local window = Instance.new('TextButton')
 		window.AutoButtonColor = false
-		window.BackgroundColor3 = color.Dark(uipallet.Main, 0.02)
+		window.AnchorPoint = Vector2.new(0.5, 0.5)
+		window.BackgroundColor3 = Color3.fromRGB(17, 14, 24)
 		window.Name = 'GUICategory'
-		window.Position = UDim2.fromOffset(6, 60)
+		window.Position = UDim2.new(0.5, 0, 0.5, 0)
+		window.Size = UDim2.fromOffset(820, 500)
 		window.Text = ''
 		window.Parent = clickgui
 		component.Object = window
-		addBlur(window)
 		addCorner(window)
-		addDragHandler(window)
+		local sidebar = Instance.new('Frame')
+		sidebar.BackgroundColor3 = Color3.fromRGB(23, 18, 33)
+		sidebar.BorderSizePixel = 0
+		sidebar.Name = 'Sidebar'
+		sidebar.Size = UDim2.fromOffset(238, 500)
+		sidebar.Parent = window
 		-- These legacy objects are retained for overlay compatibility.  The
 		-- visible Whisper wordmark is added below as its own label.
 		local logo = Instance.new('ImageLabel')
@@ -4350,8 +4357,8 @@ components = {
 		wordmark.Parent = window
 		local children = Instance.new('Frame')
 		children.BackgroundTransparency = 1
-		children.Position = UDim2.fromOffset(0, 37)
-		children.Size = UDim2.new(1, 0, 1, -33)
+		children.Position = UDim2.fromOffset(9, 62)
+		children.Size = UDim2.fromOffset(220, 424)
 		children.Parent = window
 		local windowlist = Instance.new('UIListLayout')
 		windowlist.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -4359,7 +4366,7 @@ components = {
 		windowlist.Parent = children
 		local settingsbutton = Instance.new('TextButton')
 		settingsbutton.BackgroundTransparency = 1
-		settingsbutton.Position = UDim2.new(1, -40, 0, 0)
+		settingsbutton.Position = UDim2.fromOffset(192, 10)
 		settingsbutton.Size = UDim2.fromOffset(40, 40)
 		settingsbutton.Text = ''
 		settingsbutton.Parent = window
@@ -4374,7 +4381,7 @@ components = {
 		local discord = Instance.new('ImageButton')
 		discord.BackgroundTransparency = 1
 		discord.Image = getvapeasset('newvape/assets/new/discord.png')
-		discord.Position = UDim2.new(1, -56, 0, 11)
+		discord.Position = UDim2.fromOffset(168, 21)
 		discord.Size = UDim2.fromOffset(16, 16)
 		discord.Parent = window
 		addTooltip(discord, 'Join discord')
@@ -4487,7 +4494,7 @@ components = {
 				setthreadidentity(8)
 			end
 		
-			window.Size = UDim2.fromOffset(220, 42 + windowlist.AbsoluteContentSize.Y / scale.Scale)
+			window.Size = UDim2.fromOffset(820, 500)
 			for _, button in component.Buttons do
 				if button.Icon then
 					button.Object.Text = string.rep(' ', 39 * scale.Scale)..button.Name
@@ -4563,7 +4570,18 @@ components = {
 		
 		function component:Toggle()
 			if props.Window then
-				self.Enabled = not self.Enabled
+				-- Whisper is a page-based interface: one category owns the content
+				-- panel at a time instead of opening a row of floating windows.
+				for _, category in vape.Categories do
+					if category.Type == 'Category' and category.Object ~= props.Window then
+						category.Object.Visible = false
+						if category.Button then
+							category.Button.Enabled = false
+							category.Button.Object.TextColor3 = color.Dark(uipallet.Text, 0.16)
+						end
+					end
+				end
+				self.Enabled = true
 				tween:Tween(arrow, uipallet.Tween, {
 					Position = UDim2.new(1, self.Enabled and -14 or -20, 0, 16)
 				})
@@ -4574,7 +4592,7 @@ components = {
 				end
 		
 				button.BackgroundColor3 = color.Light(uipallet.Main, 0.02)
-				props.Window.Visible = self.Enabled
+				props.Window.Visible = true
 			else
 				props.Function()
 			end
@@ -5666,7 +5684,7 @@ components = {
 		button.BorderSizePixel = 0
 		button.FontFace = uipallet.Font
 		button.Name = props.Name
-		button.Size = UDim2.fromOffset(220, 40)
+		button.Size = UDim2.new(1, 0, 0, 42)
 		button.Text = string.rep(' ', 12)..props.Name
 		button.TextColor3 = color.Dark(uipallet.Text, 0.16)
 		button.TextSize = 14
@@ -6604,7 +6622,7 @@ components = {
 			versionlabel.Name = 'Version'
 			versionlabel.Position = UDim2.new(0, 0, 1, -16)
 			versionlabel.Size = UDim2.new(1, 0, 0, 16)
-			versionlabel.Text = 'Vape '..vape.Version..' '..(
+			versionlabel.Text = 'Whisper '..vape.Version..' '..(
 				isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt'):sub(1, 6) or ''
 			)..' '
 			versionlabel.TextColor3 = color.Dark(uipallet.Text, 0.43)
