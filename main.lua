@@ -100,7 +100,10 @@ end
 if not isfile('newvape/profiles/gui.txt') then
 	writefile('newvape/profiles/gui.txt', 'new')
 end
-local gui = 'new'--readfile('newvape/profiles/gui.txt')
+-- Keep the chosen interface across reinjects, while allowing only known
+-- library names to be loaded from the local profile.
+local savedGui = readfile('newvape/profiles/gui.txt')
+local gui = ({new = true, old = true, rise = true, liquidbounce = true, wurst = true, whisper = true})[savedGui] and savedGui or 'new'
 
 if not isfolder('newvape/assets/'..gui) then
 	makefolder('newvape/assets/'..gui)
