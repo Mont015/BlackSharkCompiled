@@ -992,6 +992,9 @@ function vape:LoadGUI()
 	
 	components.LegitWindow()
 	vape.SearchBar = components.SearchBar()
+	vape.SearchBar.Object.AnchorPoint = Vector2.new(0, 0)
+	vape.SearchBar.Object.Parent = vape.Categories.Main.Object
+	vape.SearchBar.Object.Position = UDim2.fromOffset(9, 62)
 	vape.Categories.Main:CreateOverlayBar()
 	
 	--[[
@@ -2791,14 +2794,15 @@ components = {
 		
 		local window = Instance.new('TextButton')
 		window.AutoButtonColor = false
-		window.AnchorPoint = Vector2.new(0.5, 0.5)
 		window.BackgroundColor3 = Color3.fromRGB(17, 14, 24)
 		window.Name = props.Name..'Category'
-		window.Position = UDim2.new(0.5, 122, 0.5, -195)
-		window.Size = UDim2.fromOffset(560, 400)
+		window.Position = UDim2.fromOffset(250, 55)
+		window.Size = UDim2.fromOffset(554, 430)
 		window.Text = ''
 		window.Visible = false
-		window.Parent = clickgui
+		-- A category is a page inside the single Whisper window, not a
+		-- separate draggable window.
+		window.Parent = vape.Categories.Main.Object
 		addCorner(window)
 		local icon = Instance.new('ImageLabel')
 		icon.BackgroundTransparency = 1
@@ -2902,7 +2906,7 @@ components = {
 			self.Expanded = true
 			children.Visible = true
 			arrow.Rotation = 0
-			window.Size = UDim2.fromOffset(560, 400)
+			window.Size = UDim2.fromOffset(554, 430)
 			divider.Visible = true
 		end
 		
@@ -3029,7 +3033,7 @@ components = {
 			end
 		
 			children.CanvasSize = UDim2.fromOffset(0, windowlist.AbsoluteContentSize.Y / scale.Scale)
-			window.Size = UDim2.fromOffset(560, 400)
+			window.Size = UDim2.fromOffset(554, 430)
 		end)
 		
 		component.Button = vape.Categories.Main:CreateGUIButton({
@@ -4357,8 +4361,8 @@ components = {
 		wordmark.Parent = window
 		local children = Instance.new('Frame')
 		children.BackgroundTransparency = 1
-		children.Position = UDim2.fromOffset(9, 62)
-		children.Size = UDim2.fromOffset(220, 424)
+		children.Position = UDim2.fromOffset(9, 112)
+		children.Size = UDim2.fromOffset(220, 374)
 		children.Parent = window
 		local windowlist = Instance.new('UIListLayout')
 		windowlist.HorizontalAlignment = Enum.HorizontalAlignment.Center
