@@ -1220,9 +1220,9 @@ function vape:LoadGUI()
 		Suffix = 'hz'
 	})
 	
-	--[[guipane:CreateDropdown({
+	guipane:CreateDropdown({
 		Name = 'GUI Theme',
-		List = inputService.TouchEnabled and {'new', 'old'} or {'new', 'old', 'rise'},
+		List = inputService.TouchEnabled and {'new', 'old', 'whisper'} or {'new', 'old', 'rise', 'whisper'},
 		Function = function(val, mouse)
 			if mouse then
 				writefile('newvape/profiles/gui.txt', val)
@@ -1235,7 +1235,7 @@ function vape:LoadGUI()
 			end
 		end,
 		Tooltip = 'new - The newest vape theme to since v4.05\nold - The vape theme pre v4.05\nrise - Rise 6.0'
-	})]]
+	})
 	
 	guipane:CreateDropdown({
 		Name = 'Search bar style',
