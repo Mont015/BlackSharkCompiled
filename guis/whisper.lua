@@ -2800,6 +2800,7 @@ components = {
 		window.Position = UDim2.fromOffset(250, 55)
 		window.Size = UDim2.fromOffset(554, 430)
 		window.Text = ''
+	window.ClipsDescendants = true
 		window.Visible = false
 		-- A category is a page inside the single Whisper window, not a
 		-- separate draggable window.
@@ -4423,9 +4424,10 @@ components = {
 				end
 			end
 		
-			if data.Position then
-				window.Position = UDim2.fromOffset(data.Position.X, data.Position.Y)
-			end
+	-- Positions saved by the previous floating-window UI use a top-left anchor.
+	-- Whisper is a fixed dashboard, so do not reuse that incompatible position.
+	window.Position = UDim2.new(0.5, 0, 0.5, 0)
+	window.Size = UDim2.fromOffset(820, 500)
 		end
 		
 		function component:Save(data)
