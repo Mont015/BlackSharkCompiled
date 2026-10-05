@@ -4322,8 +4322,20 @@ components = {
 		window.Position = UDim2.new(0.5, 0, 0.5, 0)
 		window.Size = UDim2.fromOffset(820, 500)
 		window.Text = ''
+		window.ClipsDescendants = true
 		window.Parent = clickgui
 		component.Object = window
+		-- Old floating-window positions must never be reused by this dashboard.
+		local function lockDashboard()
+			window.AnchorPoint = Vector2.new(0.5, 0.5)
+			window.Position = UDim2.new(0.5, 0, 0.5, 0)
+			window.Size = UDim2.fromOffset(820, 500)
+		end
+		clickgui:GetPropertyChangedSignal('Visible'):Connect(function()
+			if clickgui.Visible then
+				task.defer(lockDashboard)
+			end
+		end)
 		addCorner(window)
 		local sidebar = Instance.new('Frame')
 		sidebar.BackgroundColor3 = Color3.fromRGB(23, 18, 33)
