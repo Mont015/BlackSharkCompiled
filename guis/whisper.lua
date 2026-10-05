@@ -992,9 +992,10 @@ function vape:LoadGUI()
 	
 	components.LegitWindow()
 	vape.SearchBar = components.SearchBar()
-	vape.SearchBar.Object.AnchorPoint = Vector2.new(0, 0)
-	vape.SearchBar.Object.Parent = vape.Categories.Main.Object
-	vape.SearchBar.Object.Position = UDim2.fromOffset(9, 62)
+	-- Keep Search under ClickGui: GUI options access clickgui.Search directly.
+	-- Its position lines up with the sidebar inside the centered dashboard.
+	vape.SearchBar.Object.AnchorPoint = Vector2.new(0.5, 0)
+	vape.SearchBar.Object.Position = UDim2.new(0.5, -401, 0.5, -188)
 	vape.Categories.Main:CreateOverlayBar()
 	
 	--[[
