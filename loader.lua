@@ -8,6 +8,77 @@ local delfile = delfile or function(file)
 	writefile(file, '')
 end
 
+-- Root loading screen: it appears before main.lua or a UI library is loaded.
+local loaderGui
+local function setLoaderStatus(status)
+	pcall(function()
+		if not loaderGui then
+			loaderGui = Instance.new('ScreenGui')
+			loaderGui.Name = 'VapeLoader'
+			loaderGui.DisplayOrder = 9999999
+			loaderGui.IgnoreGuiInset = true
+			loaderGui.ResetOnSpawn = false
+			loaderGui.Parent = (gethui and gethui()) or game:GetService('CoreGui')
+
+			local card = Instance.new('Frame')
+			card.Name = 'Card'
+			card.AnchorPoint = Vector2.new(0.5, 0.5)
+			card.BackgroundColor3 = Color3.fromRGB(16, 16, 19)
+			card.BorderSizePixel = 0
+			card.Position = UDim2.fromScale(0.5, 0.5)
+			card.Size = UDim2.fromOffset(350, 132)
+			card.Parent = loaderGui
+			local corner = Instance.new('UICorner')
+			corner.CornerRadius = UDim.new(0, 8)
+			corner.Parent = card
+			local stroke = Instance.new('UIStroke')
+			stroke.Color = Color3.fromRGB(45, 214, 197)
+			stroke.Transparency = 0.58
+			stroke.Parent = card
+			local title = Instance.new('TextLabel')
+			title.BackgroundTransparency = 1
+			title.Font = Enum.Font.GothamBold
+			title.Position = UDim2.fromOffset(24, 22)
+			title.Size = UDim2.fromOffset(302, 26)
+			title.Text = 'VAPE V4'
+			title.TextColor3 = Color3.fromRGB(91, 241, 222)
+			title.TextSize = 24
+			title.TextXAlignment = Enum.TextXAlignment.Left
+			title.Parent = card
+			local bar = Instance.new('Frame')
+			bar.BackgroundColor3 = Color3.fromRGB(47, 47, 54)
+			bar.BorderSizePixel = 0
+			bar.Position = UDim2.fromOffset(24, 70)
+			bar.Size = UDim2.fromOffset(302, 5)
+			bar.Parent = card
+			local barCorner = Instance.new('UICorner')
+			barCorner.CornerRadius = UDim.new(1, 0)
+			barCorner.Parent = bar
+			local fill = Instance.new('Frame')
+			fill.BackgroundColor3 = Color3.fromRGB(52, 227, 211)
+			fill.BorderSizePixel = 0
+			fill.Size = UDim2.fromScale(0.72, 1)
+			fill.Parent = bar
+			local fillCorner = Instance.new('UICorner')
+			fillCorner.CornerRadius = UDim.new(1, 0)
+			fillCorner.Parent = fill
+			local label = Instance.new('TextLabel')
+			label.Name = 'Status'
+			label.BackgroundTransparency = 1
+			label.Font = Enum.Font.Gotham
+			label.Position = UDim2.fromOffset(24, 88)
+			label.Size = UDim2.fromOffset(302, 18)
+			label.TextColor3 = Color3.fromRGB(171, 171, 182)
+			label.TextSize = 12
+			label.TextXAlignment = Enum.TextXAlignment.Left
+			label.Parent = card
+		end
+		loaderGui.Card.Status.Text = status
+	end)
+end
+
+setLoaderStatus('Checking for updates…')
+
 local function downloadFile(path, func)
 	if not isfile(path) then
 		local suc, res = pcall(function()
@@ -49,6 +120,7 @@ if not shared.VapeDeveloper then
 	commit = commit and #commit == 40 and commit or 'main'
 
 	if commit ~= 'main' and (isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt') or '') ~= commit then
+		setLoaderStatus('Refreshing local files…')
 		pcall(delfile, 'newvape/main.lua')
 		pcall(delfile, 'newvape/games/'..game.PlaceId..'.lua')
 		-- UI code is cached independently from main.lua. Refresh it with each
@@ -65,4 +137,9 @@ if not shared.VapeDeveloper then
 	writefile('newvape/profiles/commit.txt', commit)
 end
 
-return loadstring(downloadFile('newvape/main.lua'), 'main')()
+setLoaderStatus('Launching VAPE…')
+local result = loadstring(downloadFile('newvape/main.lua'), 'main')()
+task.delay(0.25, function()
+	pcall(function() loaderGui:Destroy() end)
+end)
+return result
