@@ -51,6 +51,10 @@ if not shared.VapeDeveloper then
 	if commit ~= 'main' and (isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt') or '') ~= commit then
 		pcall(delfile, 'newvape/main.lua')
 		pcall(delfile, 'newvape/games/'..game.PlaceId..'.lua')
+		-- UI code is cached independently from main.lua. Refresh it with each
+		-- release so users do not keep an old branded interface indefinitely.
+		pcall(delfile, 'newvape/guis/new.lua')
+		pcall(delfile, 'newvape/guis/whisper.lua')
 	end
 
 	if (isfile('newvape/profiles/asset.txt') and readfile('newvape/profiles/asset.txt') or '') ~= assetVer then
